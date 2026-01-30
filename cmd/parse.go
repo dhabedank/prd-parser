@@ -23,7 +23,9 @@ var (
 	testingLevel     string
 	llmProvider      string
 	llmModel         string
-	subtaskModel     string // Model for subtasks in multi-stage
+	epicModel        string // Model for epic generation (Stage 1)
+	taskModel        string // Model for task generation (Stage 2)
+	subtaskModel     string // Model for subtasks in multi-stage (Stage 3)
 	outputAdapter    string
 	outputPath       string
 	dryRun           bool
@@ -37,6 +39,7 @@ var (
 	interactiveMode  bool   // Enable human-in-the-loop mode
 	smartParseLines  int    // Threshold for smart parsing (lines)
 	fullContext      bool   // Pass PRD to all stages (not just Stage 1)
+	noProgress       bool   // Disable TUI progress display
 )
 
 // ParseCmd represents the parse command
@@ -66,7 +69,9 @@ func init() {
 	// LLM options
 	ParseCmd.Flags().StringVarP(&llmProvider, "llm", "l", "auto", "LLM provider (auto/claude-cli/codex-cli/anthropic-api)")
 	ParseCmd.Flags().StringVarP(&llmModel, "model", "m", "", "Model to use (provider-specific)")
-	ParseCmd.Flags().StringVar(&subtaskModel, "subtask-model", "", "Model for subtasks in multi-stage (can be faster/cheaper)")
+	ParseCmd.Flags().StringVar(&epicModel, "epic-model", "", "Model for epic generation (Stage 1)")
+	ParseCmd.Flags().StringVar(&taskModel, "task-model", "", "Model for task generation (Stage 2)")
+	ParseCmd.Flags().StringVar(&subtaskModel, "subtask-model", "", "Model for subtask generation (Stage 3)")
 
 	// Parsing strategy (smart by default)
 	ParseCmd.Flags().BoolVar(&multiStage, "multi-stage", false, "Force multi-stage parsing")
@@ -88,6 +93,9 @@ func init() {
 
 	// Config file
 	ParseCmd.Flags().StringVar(&configFile, "config", "", "Config file (default: .prd-parser.yaml)")
+
+	// Progress display
+	ParseCmd.Flags().BoolVar(&noProgress, "no-progress", false, "Disable TUI progress display")
 }
 
 func runParse(cmd *cobra.Command, args []string) error {
@@ -179,6 +187,8 @@ func runParse(cmd *cobra.Command, args []string) error {
 			fmt.Println("Interactive mode enabled - you'll review epics before task generation")
 			llmConfig := llm.Config{
 				Model:        llmModel,
+				EpicModel:    epicModel,
+				TaskModel:    taskModel,
 				SubtaskModel: subtaskModel,
 				PreferCLI:    true,
 			}
@@ -193,6 +203,8 @@ func runParse(cmd *cobra.Command, args []string) error {
 			// Multi-stage parsing (parallel, more robust)
 			llmConfig := llm.Config{
 				Model:        llmModel,
+				EpicModel:    epicModel,
+				TaskModel:    taskModel,
 				SubtaskModel: subtaskModel,
 				PreferCLI:    true,
 			}
@@ -324,6 +336,9 @@ func runParse(cmd *cobra.Command, args []string) error {
 type configFileData struct {
 	LLM             string `yaml:"llm"`
 	Model           string `yaml:"model"`
+	EpicModel       string `yaml:"epic_model"`
+	TaskModel       string `yaml:"task_model"`
+	SubtaskModel    string `yaml:"subtask_model"`
 	Epics           int    `yaml:"epics"`
 	TasksPerEpic    int    `yaml:"tasks_per_epic"`
 	SubtasksPerTask int    `yaml:"subtasks_per_task"`
@@ -370,6 +385,15 @@ func loadConfig(cmd *cobra.Command) error {
 	}
 	if !cmd.Flags().Changed("model") && cfg.Model != "" {
 		llmModel = cfg.Model
+	}
+	if !cmd.Flags().Changed("epic-model") && cfg.EpicModel != "" {
+		epicModel = cfg.EpicModel
+	}
+	if !cmd.Flags().Changed("task-model") && cfg.TaskModel != "" {
+		taskModel = cfg.TaskModel
+	}
+	if !cmd.Flags().Changed("subtask-model") && cfg.SubtaskModel != "" {
+		subtaskModel = cfg.SubtaskModel
 	}
 	if !cmd.Flags().Changed("epics") && cfg.Epics > 0 {
 		targetEpics = cfg.Epics

@@ -229,6 +229,48 @@ Issues are linked with proper blocking relationships:
 
 ## Configuration
 
+### Setup Wizard
+
+The easiest way to configure prd-parser is with the interactive setup wizard:
+
+```bash
+prd-parser setup
+```
+
+The wizard guides you through selecting models for each parsing stage:
+- **Epic Model** (Stage 1): Generates epics from your PRD
+- **Task Model** (Stage 2): Generates tasks for each epic
+- **Subtask Model** (Stage 3): Generates subtasks for each task
+
+Configuration is saved to `~/.prd-parser.yaml`.
+
+To reset to defaults:
+```bash
+prd-parser setup --reset
+```
+
+### Per-Stage Model Configuration
+
+Use different models for different stages to optimize for cost vs. quality:
+
+```bash
+# Use Opus for epics (complex), Sonnet for tasks, Haiku for subtasks (fast)
+prd-parser parse docs/prd.md \
+  --epic-model claude-opus-4-20250514 \
+  --task-model claude-sonnet-4-20250514 \
+  --subtask-model claude-3-5-haiku-20241022
+```
+
+Or configure in `~/.prd-parser.yaml`:
+
+```yaml
+epic_model: claude-opus-4-20250514
+task_model: claude-sonnet-4-20250514
+subtask_model: claude-3-5-haiku-20241022
+```
+
+Command-line flags always override config file settings.
+
 ### Parse Options
 
 ```bash
@@ -266,6 +308,10 @@ prd-parser parse ./prd.md --full-context=false
 | `--testing` | | comprehensive | Testing level (minimal/standard/comprehensive) |
 | `--llm` | `-l` | auto | LLM provider (auto/claude-cli/codex-cli/anthropic-api) |
 | `--model` | `-m` | | Model to use (provider-specific) |
+| `--epic-model` | | | Model for epic generation (Stage 1) |
+| `--task-model` | | | Model for task generation (Stage 2) |
+| `--subtask-model` | | | Model for subtask generation (Stage 3) |
+| `--no-progress` | | false | Disable TUI progress display |
 | `--multi-stage` | | false | Force multi-stage parsing |
 | `--single-shot` | | false | Force single-shot parsing |
 | `--smart-threshold` | | 300 | Line count for auto multi-stage (0 to disable) |
@@ -273,7 +319,6 @@ prd-parser parse ./prd.md --full-context=false
 | `--validate` | | false | Run validation pass to check for gaps |
 | `--no-review` | | false | Disable automatic LLM review pass (review ON by default) |
 | `--interactive` | | false | Human-in-the-loop mode (review epics before task generation) |
-| `--subtask-model` | | | Model for subtasks in multi-stage (can be faster/cheaper) |
 | `--output` | `-o` | beads | Output adapter (beads/json) |
 | `--output-path` | | | Output path for JSON adapter |
 | `--dry-run` | | false | Preview without creating items |
@@ -361,9 +406,12 @@ Faster single LLM call. Works well for PRDs under 300 lines.
 
 **Cost-optimized for large PRDs:**
 ```bash
-prd-parser parse docs/prd.md --subtask-model claude-sonnet-4-20250514
+prd-parser parse docs/prd.md \
+  --epic-model claude-opus-4-20250514 \
+  --task-model claude-sonnet-4-20250514 \
+  --subtask-model claude-3-5-haiku-20241022
 ```
-Use Opus for epics/tasks, Sonnet for subtasks (cheaper, still good quality).
+Use Opus for epics (complex analysis), Sonnet for tasks, Haiku for subtasks (fast, cost-effective).
 
 **Maximum validation:**
 ```bash

@@ -15,34 +15,35 @@ import (
 
 // MultiStageGenerator implements core.Generator for multi-stage parsing.
 type MultiStageGenerator struct {
-	mainModel    string // For Stage 1 (epics) and Stage 2 (tasks)
-	subtaskModel string // For Stage 3 (subtasks) - can be cheaper/faster
+	config Config
 }
 
 // NewMultiStageGenerator creates a generator for multi-stage parsing.
 func NewMultiStageGenerator(config Config) *MultiStageGenerator {
-	mainModel := config.Model
-	if mainModel == "" {
-		mainModel = "claude-opus-4-5-20251101" // Use Opus 4.5 for best quality
-	}
-
-	// Use same model for subtasks unless specified (consistency over cost savings)
-	subtaskModel := config.SubtaskModel
-	if subtaskModel == "" {
-		subtaskModel = mainModel
+	// Set default model if none specified
+	if config.Model == "" {
+		config.Model = "claude-opus-4-5-20251101" // Use Opus 4.5 for best quality
 	}
 
 	return &MultiStageGenerator{
-		mainModel:    mainModel,
-		subtaskModel: subtaskModel,
+		config: config,
 	}
+}
+
+// modelForStage returns the model to use for a given stage.
+func (g *MultiStageGenerator) modelForStage(stage string) string {
+	model := g.config.ModelForStage(stage)
+	if model == "" {
+		return g.config.Model
+	}
+	return model
 }
 
 // GenerateEpics implements Stage 1: PRD → Epics.
 func (g *MultiStageGenerator) GenerateEpics(ctx context.Context, prdContent string, config core.ParseConfig) (*core.EpicsResponse, error) {
 	userPrompt := core.BuildStage1Prompt(prdContent, config)
 
-	output, err := g.callClaude(ctx, g.mainModel, core.Stage1SystemPrompt, userPrompt)
+	output, err := g.callClaude(ctx, g.modelForStage("epic"), core.Stage1SystemPrompt, userPrompt)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +74,7 @@ func (g *MultiStageGenerator) GenerateTasks(ctx context.Context, epic core.Epic,
 		userPrompt = core.BuildStage2Prompt(epic, project, config)
 	}
 
-	output, err := g.callClaude(ctx, g.mainModel, core.Stage2SystemPrompt, userPrompt)
+	output, err := g.callClaude(ctx, g.modelForStage("task"), core.Stage2SystemPrompt, userPrompt)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +110,7 @@ func (g *MultiStageGenerator) GenerateSubtasks(ctx context.Context, task core.Ta
 	// Retry up to 2 times for transient LLM output issues
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {
-		output, err := g.callClaude(ctx, g.subtaskModel, core.Stage3SystemPrompt, userPrompt)
+		output, err := g.callClaude(ctx, g.modelForStage("subtask"), core.Stage3SystemPrompt, userPrompt)
 		if err != nil {
 			lastErr = err
 			continue

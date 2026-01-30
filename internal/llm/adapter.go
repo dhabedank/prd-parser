@@ -26,15 +26,37 @@ type Config struct {
 	// Model specifies which model to use (optional, adapter chooses default).
 	Model string
 
-	// SubtaskModel specifies model for subtask generation in multi-stage mode.
-	// Can be a faster/cheaper model since subtasks are simpler.
-	SubtaskModel string
+	// Per-stage model configuration for multi-stage parsing.
+	// These override Model when set.
+	EpicModel    string `yaml:"epic_model"`
+	TaskModel    string `yaml:"task_model"`
+	SubtaskModel string `yaml:"subtask_model"`
 
 	// APIKey for direct API access (optional if CLI is used).
 	APIKey string
 
 	// MaxTokens limits response length.
 	MaxTokens int
+}
+
+// ModelForStage returns the model to use for a given stage.
+// Falls back to the default Model if no stage-specific model is set.
+func (c Config) ModelForStage(stage string) string {
+	switch stage {
+	case "epic":
+		if c.EpicModel != "" {
+			return c.EpicModel
+		}
+	case "task":
+		if c.TaskModel != "" {
+			return c.TaskModel
+		}
+	case "subtask":
+		if c.SubtaskModel != "" {
+			return c.SubtaskModel
+		}
+	}
+	return c.Model
 }
 
 // DefaultConfig returns sensible defaults.
