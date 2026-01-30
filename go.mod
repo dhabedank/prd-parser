@@ -1,4 +1,4 @@
-module github.com/yourusername/prd-parser
+module github.com/dhabedank/prd-parser
 
 go 1.25.6
 

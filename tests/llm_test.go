@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/yourusername/prd-parser/internal/llm"
+	"github.com/dhabedank/prd-parser/internal/llm"
 )
 
 func TestDefaultLLMConfig(t *testing.T) {

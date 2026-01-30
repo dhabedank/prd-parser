@@ -1,7 +1,7 @@
 package output
 
 import (
-	"github.com/yourusername/prd-parser/internal/core"
+	"github.com/dhabedank/prd-parser/internal/core"
 )
 
 // WorkItem represents any work item in the hierarchy.

@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/yourusername/prd-parser/internal/core"
-	"github.com/yourusername/prd-parser/internal/llm"
-	"github.com/yourusername/prd-parser/internal/output"
+	"github.com/dhabedank/prd-parser/internal/core"
+	"github.com/dhabedank/prd-parser/internal/llm"
+	"github.com/dhabedank/prd-parser/internal/output"
 )
 
 var (

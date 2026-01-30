@@ -3,7 +3,7 @@ package llm
 import (
 	"context"
 
-	"github.com/yourusername/prd-parser/internal/core"
+	"github.com/dhabedank/prd-parser/internal/core"
 )
 
 // Adapter is the interface all LLM adapters must implement.

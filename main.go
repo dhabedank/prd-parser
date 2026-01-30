@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/yourusername/prd-parser/cmd"
+	"github.com/dhabedank/prd-parser/cmd"
 )
 
 var version = "0.1.0"

@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/yourusername/prd-parser/internal/core"
+	"github.com/dhabedank/prd-parser/internal/core"
 )
 
 // ClaudeCLIAdapter uses the Claude Code CLI for generation.

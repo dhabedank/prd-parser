@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourusername/prd-parser/internal/core"
+	"github.com/dhabedank/prd-parser/internal/core"
 )
 
 func TestParseResponseValidate(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/yourusername/prd-parser/internal/core"
+	"github.com/dhabedank/prd-parser/internal/core"
 )
 
 // JSONAdapter outputs the parsed response as JSON.

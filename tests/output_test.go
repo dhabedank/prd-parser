@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/yourusername/prd-parser/internal/output"
+	"github.com/dhabedank/prd-parser/internal/output"
 )
 
 func TestDefaultOutputConfig(t *testing.T) {
