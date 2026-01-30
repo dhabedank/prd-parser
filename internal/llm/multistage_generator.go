@@ -23,7 +23,7 @@ type MultiStageGenerator struct {
 func NewMultiStageGenerator(config Config) *MultiStageGenerator {
 	mainModel := config.Model
 	if mainModel == "" {
-		mainModel = "claude-opus-4-5-20250514" // Use Opus 4.5 for best quality
+		mainModel = "claude-opus-4-5-20251101" // Use Opus 4.5 for best quality
 	}
 
 	// Use same model for subtasks unless specified (consistency over cost savings)

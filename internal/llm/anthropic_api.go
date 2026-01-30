@@ -33,7 +33,7 @@ func NewAnthropicAPIAdapter(config Config) (*AnthropicAPIAdapter, error) {
 
 	model := config.Model
 	if model == "" {
-		model = "claude-opus-4-5-20250514" // Use Opus 4.5 for best quality
+		model = "claude-opus-4-5-20251101" // Use Opus 4.5 for best quality
 	}
 
 	maxTokens := config.MaxTokens
