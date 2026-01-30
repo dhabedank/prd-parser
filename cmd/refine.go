@@ -6,11 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/dhabedank/prd-parser/internal/core"
 	"github.com/dhabedank/prd-parser/internal/llm"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -47,7 +46,7 @@ func init() {
 	RefineCmd.Flags().BoolVar(&refineScanAll, "scan-all", true, "Scan ALL issues for the same misalignment (not just children)")
 	RefineCmd.Flags().BoolVar(&refineDryRun, "dry-run", false, "Preview changes without applying them")
 	RefineCmd.Flags().StringVar(&refinePRDPath, "prd", "", "Path to PRD file for context (recommended)")
-	RefineCmd.MarkFlagRequired("feedback")
+	_ = RefineCmd.MarkFlagRequired("feedback")
 }
 
 func runRefine(cmd *cobra.Command, args []string) error {
@@ -471,21 +470,3 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-// Progress indicator helper
-func startProgress() chan bool {
-	done := make(chan bool)
-	go func() {
-		start := time.Now()
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-done:
-				return
-			case <-ticker.C:
-				fmt.Printf("  Still processing... (%s)\n", time.Since(start).Truncate(time.Second))
-			}
-		}
-	}()
-	return done
-}
