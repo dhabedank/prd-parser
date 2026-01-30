@@ -23,7 +23,12 @@ func TestParseResponseValidate(t *testing.T) {
 					{
 						Title: "Epic 1",
 						Tasks: []core.Task{
-							{Title: "Task 1"},
+							{
+								Title: "Task 1",
+								Subtasks: []core.Subtask{
+									{Title: "Subtask 1"},
+								},
+							},
 						},
 					},
 				},

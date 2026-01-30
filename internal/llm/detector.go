@@ -34,7 +34,7 @@ func DetectBestAdapter(config Config) (Adapter, error) {
 
 // ListAvailableAdapters returns all adapters that could be used.
 func ListAvailableAdapters(config Config) []string {
-	var available []string
+	available := []string{}
 
 	claude := NewClaudeCLIAdapter(config)
 	if claude.IsAvailable() {
