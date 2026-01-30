@@ -9,6 +9,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // ModelInfo describes an available model.
@@ -208,6 +211,8 @@ func fetchOpenAIModels() []ModelInfo {
 
 // formatModelName converts a model ID to a human-readable name.
 func formatModelName(id string) string {
+	caser := cases.Title(language.English)
+
 	// Handle Claude models
 	if strings.HasPrefix(id, "claude-") {
 		parts := strings.Split(id, "-")
@@ -219,7 +224,7 @@ func formatModelName(id string) string {
 				if len(parts[i]) == 8 && parts[i][0] == '2' {
 					break
 				}
-				name += " " + strings.Title(parts[i])
+				name += " " + caser.String(parts[i])
 			}
 			return name
 		}
