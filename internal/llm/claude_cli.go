@@ -72,7 +72,7 @@ func (a *ClaudeCLIAdapter) Generate(ctx context.Context, systemPrompt, userPromp
 	// All retries failed - save raw response for debugging
 	if lastOutput != "" {
 		debugFile := filepath.Join(os.TempDir(), "prd-parser-last-response.txt")
-		os.WriteFile(debugFile, []byte(lastOutput), 0644)
+		_ = os.WriteFile(debugFile, []byte(lastOutput), 0644) // Best-effort, don't override original error
 		return nil, fmt.Errorf("%w (raw response saved to %s)", lastErr, debugFile)
 	}
 

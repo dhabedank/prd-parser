@@ -245,7 +245,7 @@ func runParse(cmd *cobra.Command, args []string) error {
 		// Auto-save checkpoint on failure for retry
 		checkpointPath := filepath.Join(os.TempDir(), "prd-parser-checkpoint.json")
 		data, _ := json.MarshalIndent(parseResponse, "", "  ")
-		os.WriteFile(checkpointPath, data, 0644)
+		_ = os.WriteFile(checkpointPath, data, 0644) // Best-effort, don't override original error
 		return fmt.Errorf("creating items failed: %w\n\nCheckpoint saved to: %s\nRetry with: prd-parser parse %s --from-json %s", err, checkpointPath, prdPath, checkpointPath)
 	}
 
