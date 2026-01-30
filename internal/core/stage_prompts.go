@@ -34,6 +34,7 @@ Each epic should have:
 - Do NOT include "tasks" field - tasks are generated in Stage 2
 - **First epic should include project setup** - environment, dependencies, basic config
 - **Acceptance criteria must be verifiable** - include at least one "can run/demonstrate X"
+- **Every feature needs an interface** - don't build backend without a way to interact with it; users need to SEE features work
 
 ## OUTPUT REQUIREMENTS
 
@@ -89,6 +90,7 @@ Return a JSON object with:
 - Do NOT include "subtasks" field - subtasks are generated in Stage 3
 - **Include operational tasks**: If code adds dependencies, include installation; if it changes schemas, include migration/type generation
 - **End sequences with verification**: After a set of related tasks, include a task to verify everything works together
+- **UI before or with backend**: Don't create API endpoints without a page/component to call them - users need to SEE features work, not just trust the backend exists
 
 ## OUTPUT REQUIREMENTS
 

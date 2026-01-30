@@ -119,17 +119,31 @@ Labels help filter and organize work. Extract from PRD tech stack and feature de
 
 ## PRACTICAL COMPLETENESS
 
-An agent following these tasks should end up with WORKING software. Include:
+An agent following these tasks should end up with WORKING software that a **novice can verify**. Include:
 
 - **Setup tasks early**: Project initialization, dependency installation, environment configuration
 - **Verification after changes**: After adding code, there should be a way to verify it works
 - **Don't assume magic**: If something needs to be installed, configured, or run - make it a task
 - **Acceptance = runnable**: Epic acceptance criteria should include "the feature can be demonstrated"
 
-Common gaps to avoid:
-- Adding a dependency without a task to install it
-- Creating a schema without a task to run migrations/generate types
-- Building a feature without a task to verify it works locally
+**IMPORTANT: Testability for non-technical users**
+
+The people implementing these tasks may be novice or intermediate developers. They need TANGIBLE ways to verify features work - not just "test the API" with no interface to do so.
+
+- **Don't build backend without frontend**: If you create API endpoints, include a minimal UI or page to interact with them
+- **No orphan functionality**: Every feature should have a way to SEE it working (UI, CLI output, logs - something visible)
+- **Avoid "test this" without the means**: If acceptance requires testing something, the tasks must create the interface to test it
+- **Frontend before polish**: A basic working UI comes before a polished backend - users need to see progress
+
+Example of what to AVOID:
+- Epic: "User Authentication" → Tasks build Clerk integration, API routes, middleware...
+- Acceptance: "User can log in"
+- Problem: No login page was created! User has no way to actually log in.
+
+Example of what to DO:
+- Epic: "User Authentication" → Tasks include "Create basic login page" early
+- Then build the backend that the login page calls
+- User can actually click "Login" and see it work
 
 ## ANTI-PATTERNS TO AVOID
 
