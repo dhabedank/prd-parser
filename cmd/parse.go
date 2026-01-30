@@ -36,6 +36,7 @@ var (
 	noReview         bool   // Disable automatic LLM review pass
 	interactiveMode  bool   // Enable human-in-the-loop mode
 	smartParseLines  int    // Threshold for smart parsing (lines)
+	fullContext      bool   // Pass PRD to all stages (not just Stage 1)
 )
 
 // ParseCmd represents the parse command
@@ -74,6 +75,7 @@ func init() {
 	ParseCmd.Flags().BoolVar(&noReview, "no-review", false, "Disable automatic LLM review pass (review is ON by default)")
 	ParseCmd.Flags().BoolVar(&interactiveMode, "interactive", false, "Enable human-in-the-loop mode (review at each stage)")
 	ParseCmd.Flags().IntVar(&smartParseLines, "smart-threshold", 300, "Line count threshold for auto multi-stage (0 to disable)")
+	ParseCmd.Flags().BoolVar(&fullContext, "full-context", false, "Pass PRD to all stages (keeps agents grounded in original requirements)")
 
 	// Output options
 	ParseCmd.Flags().StringVarP(&outputAdapter, "output", "o", "beads", "Output adapter (beads/json)")
@@ -167,6 +169,7 @@ func runParse(cmd *cobra.Command, args []string) error {
 			DefaultPriority:  priority,
 			TestingLevel:     testingLevel,
 			PropagateContext: true,
+			FullContext:      fullContext,
 		}
 
 		ctx := context.Background()

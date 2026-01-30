@@ -213,6 +213,7 @@ type ParseConfig struct {
 	DefaultPriority  Priority `json:"default_priority"`  // Default: medium
 	TestingLevel     string   `json:"testing_level"`     // minimal/standard/comprehensive
 	PropagateContext bool     `json:"propagate_context"` // Default: true
+	FullContext      bool     `json:"full_context"`      // Pass PRD to all stages (not just Stage 1)
 }
 
 // DefaultParseConfig returns sensible defaults.

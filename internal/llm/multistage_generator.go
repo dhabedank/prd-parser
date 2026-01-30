@@ -65,8 +65,13 @@ func (g *MultiStageGenerator) GenerateEpics(ctx context.Context, prdContent stri
 }
 
 // GenerateTasks implements Stage 2: Epic → Tasks.
-func (g *MultiStageGenerator) GenerateTasks(ctx context.Context, epic core.Epic, project core.ProjectContext, config core.ParseConfig) ([]core.Task, error) {
-	userPrompt := core.BuildStage2Prompt(epic, project, config)
+func (g *MultiStageGenerator) GenerateTasks(ctx context.Context, epic core.Epic, project core.ProjectContext, config core.ParseConfig, prdContent string) ([]core.Task, error) {
+	var userPrompt string
+	if prdContent != "" && config.FullContext {
+		userPrompt = core.BuildStage2PromptWithPRD(epic, project, config, prdContent)
+	} else {
+		userPrompt = core.BuildStage2Prompt(epic, project, config)
+	}
 
 	output, err := g.callClaude(ctx, g.mainModel, core.Stage2SystemPrompt, userPrompt)
 	if err != nil {
@@ -93,8 +98,13 @@ func (g *MultiStageGenerator) GenerateTasks(ctx context.Context, epic core.Epic,
 }
 
 // GenerateSubtasks implements Stage 3: Task → Subtasks.
-func (g *MultiStageGenerator) GenerateSubtasks(ctx context.Context, task core.Task, epicContext string, project core.ProjectContext, config core.ParseConfig) ([]core.Subtask, error) {
-	userPrompt := core.BuildStage3Prompt(task, epicContext, project, config)
+func (g *MultiStageGenerator) GenerateSubtasks(ctx context.Context, task core.Task, epicContext string, project core.ProjectContext, config core.ParseConfig, prdContent string) ([]core.Subtask, error) {
+	var userPrompt string
+	if prdContent != "" && config.FullContext {
+		userPrompt = core.BuildStage3PromptWithPRD(task, epicContext, project, config, prdContent)
+	} else {
+		userPrompt = core.BuildStage3Prompt(task, epicContext, project, config)
+	}
 
 	// Retry up to 2 times for transient LLM output issues
 	var lastErr error

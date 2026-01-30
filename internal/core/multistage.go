@@ -12,15 +12,16 @@ import (
 // Stage 3: For each Task → Subtasks (parallel)
 // Stage 4: Cross-stage dependency resolution
 type MultiStageParser struct {
-	generator Generator
-	config    ParseConfig
+	generator  Generator
+	config     ParseConfig
+	prdContent string // Stored for full-context mode
 }
 
 // Generator is the interface for LLM generation at each stage.
 type Generator interface {
 	GenerateEpics(ctx context.Context, prdContent string, config ParseConfig) (*EpicsResponse, error)
-	GenerateTasks(ctx context.Context, epic Epic, projectContext ProjectContext, config ParseConfig) ([]Task, error)
-	GenerateSubtasks(ctx context.Context, task Task, epicContext string, projectContext ProjectContext, config ParseConfig) ([]Subtask, error)
+	GenerateTasks(ctx context.Context, epic Epic, projectContext ProjectContext, config ParseConfig, prdContent string) ([]Task, error)
+	GenerateSubtasks(ctx context.Context, task Task, epicContext string, projectContext ProjectContext, config ParseConfig, prdContent string) ([]Subtask, error)
 }
 
 // EpicsResponse is the Stage 1 response - epics without tasks.
@@ -71,6 +72,13 @@ func NewMultiStageParser(generator Generator, config ParseConfig) *MultiStagePar
 
 // Parse executes the multi-stage parsing pipeline.
 func (p *MultiStageParser) Parse(ctx context.Context, prdContent string) (*ParseResponse, error) {
+	// Store PRD for full-context mode
+	p.prdContent = prdContent
+
+	if p.config.FullContext {
+		fmt.Println("Full context mode: PRD will be passed to all stages")
+	}
+
 	// Stage 1: Generate epics (high-level only)
 	fmt.Println("Stage 1: Generating epics from PRD...")
 	epicsResp, err := p.generator.GenerateEpics(ctx, prdContent, p.config)
@@ -157,7 +165,13 @@ func (p *MultiStageParser) generateTasksParallel(ctx context.Context, epicsResp 
 				Labels:             es.Labels,
 			}
 
-			tasks, err := p.generator.GenerateTasks(ctx, epic, epicsResp.Project, p.config)
+			// Pass PRD content if full-context mode is enabled
+			prd := ""
+			if p.config.FullContext {
+				prd = p.prdContent
+			}
+
+			tasks, err := p.generator.GenerateTasks(ctx, epic, epicsResp.Project, p.config, prd)
 			if err != nil {
 				errs[idx] = fmt.Errorf("epic %s: %w", es.TempID, err)
 				return
@@ -222,7 +236,13 @@ func (p *MultiStageParser) generateSubtasksParallel(ctx context.Context, epics [
 			sem <- struct{}{}        // Acquire
 			defer func() { <-sem }() // Release
 
-			subtasks, err := p.generator.GenerateSubtasks(ctx, r.task, r.epicCtx, projectCtx, p.config)
+			// Pass PRD content if full-context mode is enabled
+			prd := ""
+			if p.config.FullContext {
+				prd = p.prdContent
+			}
+
+			subtasks, err := p.generator.GenerateSubtasks(ctx, r.task, r.epicCtx, projectCtx, p.config, prd)
 			if err != nil {
 				errs[idx] = fmt.Errorf("task %s: %w", r.task.TempID, err)
 				return

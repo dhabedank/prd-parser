@@ -14,8 +14,9 @@ import (
 // InteractiveParser wraps multi-stage parsing with human-in-the-loop review.
 // It pauses after Stage 1 (epics) for human review before continuing.
 type InteractiveParser struct {
-	generator Generator
-	config    ParseConfig
+	generator  Generator
+	config     ParseConfig
+	prdContent string // Stored for full-context mode
 }
 
 // NewInteractiveParser creates an interactive parser.
@@ -28,6 +29,13 @@ func NewInteractiveParser(generator Generator, config ParseConfig) *InteractiveP
 
 // Parse executes the interactive multi-stage parsing pipeline.
 func (p *InteractiveParser) Parse(ctx context.Context, prdContent string) (*ParseResponse, error) {
+	// Store PRD for full-context mode
+	p.prdContent = prdContent
+
+	if p.config.FullContext {
+		fmt.Println("Full context mode: PRD will be passed to all stages")
+	}
+
 	// Stage 1: Generate epics (high-level only)
 	fmt.Println("Stage 1: Generating epics from PRD...")
 	epicsResp, err := p.generator.GenerateEpics(ctx, prdContent, p.config)
@@ -201,7 +209,13 @@ func (p *InteractiveParser) generateTasksParallel(ctx context.Context, epics []E
 			sem <- struct{}{}        // Acquire
 			defer func() { <-sem }() // Release
 
-			tasks, err := p.generator.GenerateTasks(ctx, e, project, p.config)
+			// Pass PRD content if full-context mode is enabled
+			prd := ""
+			if p.config.FullContext {
+				prd = p.prdContent
+			}
+
+			tasks, err := p.generator.GenerateTasks(ctx, e, project, p.config, prd)
 			if err != nil {
 				errs[idx] = fmt.Errorf("epic %s: %w", e.TempID, err)
 				return
@@ -270,7 +284,13 @@ func (p *InteractiveParser) generateSubtasksParallel(ctx context.Context, epics 
 			sem <- struct{}{}        // Acquire
 			defer func() { <-sem }() // Release
 
-			subtasks, err := p.generator.GenerateSubtasks(ctx, r.task, r.epicCtx, projectCtx, p.config)
+			// Pass PRD content if full-context mode is enabled
+			prd := ""
+			if p.config.FullContext {
+				prd = p.prdContent
+			}
+
+			subtasks, err := p.generator.GenerateSubtasks(ctx, r.task, r.epicCtx, projectCtx, p.config, prd)
 			if err != nil {
 				errs[idx] = fmt.Errorf("task %s: %w", r.task.TempID, err)
 				return

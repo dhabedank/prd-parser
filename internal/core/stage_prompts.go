@@ -372,3 +372,117 @@ func BuildStage3Prompt(task Task, epicContext string, project ProjectContext, co
 		config.SubtasksPerTask,
 	)
 }
+
+// ============================================================================
+// FULL CONTEXT MODE: Pass PRD to all stages
+// ============================================================================
+
+// Stage2UserPromptWithPRD includes the original PRD for reference.
+const Stage2UserPromptWithPRD = `Break down this epic into tasks.
+
+EPIC:
+- ID: %s
+- Title: %s
+- Description: %s
+- Context: %v
+- Acceptance Criteria: %v
+
+PROJECT CONTEXT:
+- Product: %s
+- Target Users: %s
+- Tech Stack: %v
+
+Target tasks: ~%d
+Default priority: %s
+
+---
+ORIGINAL PRD (your north star - refer to this for details and requirements):
+---
+%s
+---
+
+IMPORTANT: Use the PRD above to ensure tasks align with original requirements.
+Don't invent features not in the PRD. Don't miss requirements that ARE in the PRD.
+
+Return JSON with "tasks" array. Do NOT include subtasks.`
+
+// Stage3UserPromptWithPRD includes the original PRD for reference.
+const Stage3UserPromptWithPRD = `Break down this task into subtasks.
+
+TASK:
+- ID: %s
+- Title: %s
+- Description: %s
+- Context: %v
+- Design Notes: %v
+
+EPIC CONTEXT: %s
+
+PROJECT:
+- Product: %s
+- Target Users: %s
+
+Target subtasks: ~%d
+
+---
+ORIGINAL PRD (your north star - refer to this for specific requirements):
+---
+%s
+---
+
+IMPORTANT: Use the PRD above to ensure subtasks implement actual requirements.
+Be specific and reference PRD details where applicable.
+
+Return JSON with "subtasks" array.`
+
+// BuildStage2PromptWithPRD builds Stage 2 prompt with full PRD context.
+func BuildStage2PromptWithPRD(epic Epic, project ProjectContext, config ParseConfig, prdContent string) string {
+	// Truncate PRD if too long (keep first ~8000 chars to stay within token limits)
+	prd := prdContent
+	if len(prd) > 8000 {
+		prd = prd[:8000] + "\n\n[... PRD truncated for length ...]"
+	}
+
+	return fmt.Sprintf(
+		Stage2UserPromptWithPRD,
+		epic.TempID,
+		epic.Title,
+		epic.Description,
+		epic.Context,
+		epic.AcceptanceCriteria,
+		project.ProductName,
+		project.TargetAudience,
+		project.TechStack,
+		config.TasksPerEpic,
+		config.DefaultPriority,
+		prd,
+	)
+}
+
+// BuildStage3PromptWithPRD builds Stage 3 prompt with full PRD context.
+func BuildStage3PromptWithPRD(task Task, epicContext string, project ProjectContext, config ParseConfig, prdContent string) string {
+	designNotes := ""
+	if task.DesignNotes != nil {
+		designNotes = *task.DesignNotes
+	}
+
+	// Truncate PRD if too long (keep first ~6000 chars for subtask stage)
+	prd := prdContent
+	if len(prd) > 6000 {
+		prd = prd[:6000] + "\n\n[... PRD truncated for length ...]"
+	}
+
+	return fmt.Sprintf(
+		Stage3UserPromptWithPRD,
+		task.TempID,
+		task.Title,
+		task.Description,
+		task.Context,
+		designNotes,
+		epicContext,
+		project.ProductName,
+		project.TargetAudience,
+		config.SubtasksPerTask,
+		prd,
+	)
+}
