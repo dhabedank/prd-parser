@@ -44,7 +44,7 @@ func MarkInitialized() {
 	}
 
 	markerPath := filepath.Join(dir, ".initialized")
-	os.WriteFile(markerPath, []byte{}, 0644)
+	_ = os.WriteFile(markerPath, []byte{}, 0644)
 }
 
 // PrintFirstRunNotice prints a welcome message for first-time users.

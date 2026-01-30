@@ -135,9 +135,9 @@ func markChecked() {
 
 	// Touch the file
 	if _, err := os.Stat(markerPath); os.IsNotExist(err) {
-		os.WriteFile(markerPath, []byte{}, 0644)
+		_ = os.WriteFile(markerPath, []byte{}, 0644)
 	} else {
-		os.Chtimes(markerPath, time.Now(), time.Now())
+		_ = os.Chtimes(markerPath, time.Now(), time.Now())
 	}
 }
 
@@ -176,6 +176,6 @@ func isNewerVersion(latest, current string) bool {
 // parseVersionPart extracts a number from a version part (e.g., "1" from "1-beta").
 func parseVersionPart(s string) int {
 	var n int
-	fmt.Sscanf(s, "%d", &n)
+	_, _ = fmt.Sscanf(s, "%d", &n)
 	return n
 }
