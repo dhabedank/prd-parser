@@ -16,7 +16,7 @@ Parse Product Requirements Documents into structured tasks with LLM guardrails.
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/prd-parser.git
+git clone https://github.com/dhabedank/prd-parser.git
 cd prd-parser
 make build
 make install  # Copies to $GOPATH/bin
