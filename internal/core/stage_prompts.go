@@ -43,10 +43,33 @@ Each epic should have:
 - description: What this epic delivers
 - context: Business/user context for why this matters
 - acceptance_criteria: Array of completion conditions
-- testing: Testing requirements object
+- testing: Testing requirements (REQUIRED - see format below)
 - depends_on: Array of epic temp_ids this depends on
 - estimated_days: Estimated working days
 - labels: Categorization tags
+
+## TESTING REQUIREMENTS (REQUIRED AT EVERY LEVEL)
+
+**Testing is NOT optional.** Every epic MUST have a testing object with at least unit_tests and integration_tests.
+
+Format:
+{
+  "testing": {
+    "unit_tests": "What functions/modules need unit tests",
+    "integration_tests": "How components interact and what to test",
+    "type_tests": "Type safety verification if applicable",
+    "e2e_tests": "User flows to verify end-to-end"
+  }
+}
+
+Example for a Voice AI epic:
+{
+  "testing": {
+    "unit_tests": "Audio streaming functions, transcript parsing, conversation state machine",
+    "integration_tests": "LFM API integration, Telnyx call flow, database persistence",
+    "e2e_tests": "Complete debrief conversation from dial to CRM update"
+  }
+}
 
 ## EPIC DEPENDENCIES
 
@@ -117,13 +140,36 @@ Return a JSON object with:
       "description": "What needs to be done",
       "context": "Propagated context + task-specific context",
       "design_notes": "Technical approach",
-      "testing": { testing requirements },
+      "testing": {
+        "unit_tests": "Specific functions/methods to test",
+        "integration_tests": "Component interactions to verify"
+      },
       "priority": "critical/high/medium/low/very-low",
       "depends_on": ["1.1"] (other task temp_ids),
       "estimated_hours": 4,
       "labels": ["backend", "api"]
     }
   ]
+}
+
+## TESTING REQUIREMENTS (REQUIRED FOR EVERY TASK)
+
+**Every task MUST have specific testing requirements.** Don't skip this field.
+
+Format:
+{
+  "testing": {
+    "unit_tests": "Specific functions, classes, or methods to test in isolation",
+    "integration_tests": "How this task's code interacts with other components"
+  }
+}
+
+Example for "Implement FUB API integration":
+{
+  "testing": {
+    "unit_tests": "API client methods, error handling, retry logic, response parsing",
+    "integration_tests": "Actual FUB API calls with test credentials, webhook handling"
+  }
 }
 
 ## DEPENDENCIES (CRITICAL - MOST TASKS SHOULD HAVE depends_on)
@@ -201,12 +247,32 @@ Return a JSON object with:
       "title": "Atomic action",
       "description": "Specific implementation details",
       "context": "Why this matters",
-      "testing": { testing requirements },
+      "testing": {
+        "unit_tests": "Specific test cases for this subtask"
+      },
       "estimated_minutes": 45,
       "depends_on": ["1.1.1"],
       "labels": ["backend"]
     }
   ]
+}
+
+## TESTING REQUIREMENTS (REQUIRED FOR EVERY SUBTASK)
+
+**Every subtask MUST have at least unit_tests specified.** Be specific about what to test.
+
+Format:
+{
+  "testing": {
+    "unit_tests": "Specific test cases or assertions for this atomic piece of work"
+  }
+}
+
+Example for "Create FUB API client class":
+{
+  "testing": {
+    "unit_tests": "Test authenticate(), test getContacts() with mock response, test error handling for 401/429/500"
+  }
 }
 
 ## DEPENDENCIES (SUBTASKS WITHIN A TASK)
