@@ -75,7 +75,7 @@ func init() {
 	ParseCmd.Flags().BoolVar(&noReview, "no-review", false, "Disable automatic LLM review pass (review is ON by default)")
 	ParseCmd.Flags().BoolVar(&interactiveMode, "interactive", false, "Enable human-in-the-loop mode (review at each stage)")
 	ParseCmd.Flags().IntVar(&smartParseLines, "smart-threshold", 300, "Line count threshold for auto multi-stage (0 to disable)")
-	ParseCmd.Flags().BoolVar(&fullContext, "full-context", false, "Pass PRD to all stages (keeps agents grounded in original requirements)")
+	ParseCmd.Flags().BoolVar(&fullContext, "full-context", true, "Pass PRD to all stages (default: true, use --full-context=false to disable)")
 
 	// Output options
 	ParseCmd.Flags().StringVarP(&outputAdapter, "output", "o", "beads", "Output adapter (beads/json)")
