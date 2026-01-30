@@ -102,17 +102,20 @@ task operations without context-switching to a GUI.
 prd-parser parse docs/prd.md
 ```
 
-That's it. Your PRD is now a structured beads project:
+That's it. Your PRD is now a structured beads project with **readable hierarchical IDs**:
 
 ```bash
 $ bd list
-○ my-project-9x3 [P1] [epic] - Core Task Management System
-○ my-project-4og [P1] [task] - Implement Task Data Model
-○ my-project-67g [P1] [task] - Build CLI Interface
-○ my-project-3m7 [P2] [task] - Add JSON Storage Layer
-○ my-project-bzy [P2] [task] - Implement List Filtering
+○ my-project-e1 [P1] [epic] - Core Task Management System
+○ my-project-e1t1 [P0] [task] - Implement Task Data Model
+○ my-project-e1t1s1 [P2] [task] - Define Task struct with JSON tags
+○ my-project-e1t1s2 [P2] [task] - Implement JSON file storage
+○ my-project-e1t2 [P1] [task] - Build CLI Interface
+○ my-project-e2 [P1] [epic] - User Authentication
 ...
 ```
+
+IDs follow a logical hierarchy: `e1` (epic 1) → `e1t1` (task 1) → `e1t1s1` (subtask 1). Use `bd show <id>` to see parent/children relationships.
 
 ### 5. Start working with beads + Claude
 
@@ -239,12 +242,38 @@ prd-parser parse ./prd.md --include-context --include-testing
 | `--testing` | | comprehensive | Testing level (minimal/standard/comprehensive) |
 | `--llm` | `-l` | auto | LLM provider (auto/claude-cli/codex-cli/anthropic-api) |
 | `--model` | `-m` | | Model to use (provider-specific) |
+| `--multi-stage` | | false | Use multi-stage parsing (recommended for large PRDs) |
+| `--subtask-model` | | | Model for subtasks in multi-stage (can be faster/cheaper) |
 | `--output` | `-o` | beads | Output adapter (beads/json) |
 | `--output-path` | | | Output path for JSON adapter |
 | `--working-dir` | `-w` | . | Working directory for beads |
 | `--dry-run` | | false | Preview without creating items |
 | `--include-context` | | true | Include context in descriptions |
 | `--include-testing` | | true | Include testing requirements |
+
+### Multi-Stage Parsing (Recommended for Large PRDs)
+
+For large PRDs (500+ lines), use multi-stage parsing for more reliable results:
+
+```bash
+prd-parser parse ./prd.md --multi-stage
+```
+
+Multi-stage parsing works in three parallel phases:
+1. **Stage 1**: Extract epics from PRD (high-level structure)
+2. **Stage 2**: Generate tasks for each epic (parallel)
+3. **Stage 3**: Generate subtasks for each task (parallel)
+
+Benefits:
+- More reliable for complex PRDs
+- Parallel execution for faster processing
+- Better error recovery (retry individual stages)
+- Can use cheaper models for subtask generation
+
+```bash
+# Use a faster model for subtasks
+prd-parser parse ./prd.md --multi-stage --subtask-model claude-haiku-3
+```
 
 ## LLM Providers
 

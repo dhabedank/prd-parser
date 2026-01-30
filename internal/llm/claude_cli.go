@@ -103,12 +103,35 @@ func (a *ClaudeCLIAdapter) callClaude(ctx context.Context, systemPrompt, userPro
 	}
 	userFile.Close()
 
+	// Start progress indicator in background
+	done := make(chan bool)
+	go func() {
+		startTime := time.Now()
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				elapsed := time.Since(startTime).Truncate(time.Second)
+				fmt.Printf("  Still generating... (%s elapsed)\n", elapsed)
+			}
+		}
+	}()
+
 	// Build claude command
+	// Key flags for clean, isolated execution:
+	// --tools "" disables all tools so LLM just responds to the prompt
+	// --output-format json returns structured result
+	// --no-session-persistence avoids picking up session context
 	cmd := exec.CommandContext(ctx, "claude",
 		"--model", a.model,
 		"--system-prompt-file", systemFile.Name(),
 		"--print",
-		"--output-format", "text",
+		"--output-format", "json",
+		"--tools", "",
+		"--no-session-persistence",
 	)
 
 	// Pass user prompt via stdin
@@ -116,6 +139,8 @@ func (a *ClaudeCLIAdapter) callClaude(ctx context.Context, systemPrompt, userPro
 	cmd.Stdin = strings.NewReader(string(userContent))
 
 	output, err := cmd.Output()
+	close(done) // Stop progress indicator
+
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return "", fmt.Errorf("claude CLI failed: %s", string(exitErr.Stderr))
@@ -126,10 +151,31 @@ func (a *ClaudeCLIAdapter) callClaude(ctx context.Context, systemPrompt, userPro
 	return string(output), nil
 }
 
+// cliJSONResponse is the wrapper structure from --output-format json
+type cliJSONResponse struct {
+	Type    string `json:"type"`
+	Result  string `json:"result"`
+	IsError bool   `json:"is_error"`
+}
+
 // parseJSONResponse extracts and validates JSON from LLM output.
 func parseJSONResponse(output string) (*core.ParseResponse, error) {
 	if len(output) == 0 {
 		return nil, fmt.Errorf("empty response from LLM")
+	}
+
+	output = strings.TrimSpace(output)
+
+	// Check if this is wrapped JSON from --output-format json
+	if strings.HasPrefix(output, "{\"type\":") {
+		var wrapper cliJSONResponse
+		if err := json.Unmarshal([]byte(output), &wrapper); err == nil {
+			if wrapper.IsError {
+				return nil, fmt.Errorf("CLI returned error: %s", wrapper.Result)
+			}
+			// Extract the actual response from the wrapper
+			output = wrapper.Result
+		}
 	}
 
 	// Find JSON in output (may be wrapped in markdown fences)

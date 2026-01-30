@@ -26,6 +26,10 @@ type Config struct {
 	// Model specifies which model to use (optional, adapter chooses default).
 	Model string
 
+	// SubtaskModel specifies model for subtask generation in multi-stage mode.
+	// Can be a faster/cheaper model since subtasks are simpler.
+	SubtaskModel string
+
 	// APIKey for direct API access (optional if CLI is used).
 	APIKey string
 

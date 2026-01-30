@@ -15,6 +15,7 @@ type BeadsAdapter struct {
 	dryRun         bool
 	includeContext bool
 	includeTesting bool
+	prefix         string // Beads issue prefix (e.g., "my-project")
 }
 
 // NewBeadsAdapter creates a Beads adapter.
@@ -25,6 +26,46 @@ func NewBeadsAdapter(config Config) *BeadsAdapter {
 		includeContext: config.IncludeContext,
 		includeTesting: config.IncludeTesting,
 	}
+}
+
+// getPrefix retrieves the beads prefix from the database.
+func (a *BeadsAdapter) getPrefix() string {
+	if a.prefix != "" {
+		return a.prefix
+	}
+
+	// Get prefix from beads database config
+	// The prefix is stored in the config table as issue_prefix
+	dbPath := ".beads/beads.db"
+	if a.workingDir != "." && a.workingDir != "" {
+		dbPath = a.workingDir + "/" + dbPath
+	}
+
+	cmd := exec.Command("sqlite3", dbPath, "SELECT value FROM config WHERE key='issue_prefix';")
+	output, err := cmd.Output()
+	if err == nil {
+		prefix := strings.TrimSpace(string(output))
+		if prefix != "" {
+			a.prefix = prefix
+			return a.prefix
+		}
+	}
+
+	// Fallback: try to extract from bd list output
+	cmd = exec.Command("bd", "list", "--limit", "1")
+	cmd.Dir = a.workingDir
+	output, err = cmd.Output()
+	if err == nil {
+		// Extract prefix from issue ID like "my-project-abc"
+		re := regexp.MustCompile(`\b([\w-]+)-[a-z0-9]{2,}\b`)
+		match := re.FindStringSubmatch(string(output))
+		if len(match) > 1 {
+			a.prefix = match[1]
+			return a.prefix
+		}
+	}
+
+	return "prd" // last resort fallback
 }
 
 func (a *BeadsAdapter) Name() string {
@@ -182,6 +223,9 @@ func (a *BeadsAdapter) createEpic(epic *core.Epic) (string, error) {
 		estimateMinutes = int(*epic.EstimatedDays * 8 * 60) // 8 hours per day
 	}
 
+	// Generate readable ID like "prefix-e1"
+	readableID := tempIDToReadableID(a.getPrefix(), epic.TempID)
+
 	return a.runBdCreate(createOptions{
 		title:       epic.Title,
 		description: desc,
@@ -190,6 +234,7 @@ func (a *BeadsAdapter) createEpic(epic *core.Epic) (string, error) {
 		acceptance:  acceptance,
 		estimate:    estimateMinutes,
 		labels:      epic.Labels,
+		explicitID:  readableID,
 	})
 }
 
@@ -207,16 +252,33 @@ func (a *BeadsAdapter) createTask(task *core.Task, parentID string) (string, err
 		estimateMinutes = int(*task.EstimatedHours * 60)
 	}
 
-	return a.runBdCreate(createOptions{
+	// Generate readable ID like "prefix-e1t1"
+	readableID := tempIDToReadableID(a.getPrefix(), task.TempID)
+
+	// Create without parent (can't use both --id and --parent)
+	id, err := a.runBdCreate(createOptions{
 		title:       task.Title,
 		description: desc,
 		itemType:    "task",
 		priority:    priority,
-		parentID:    parentID,
 		design:      designNotes,
 		estimate:    estimateMinutes,
 		labels:      task.Labels,
+		explicitID:  readableID,
 	})
+	if err != nil {
+		return "", err
+	}
+
+	// Set parent relationship after creation
+	if parentID != "" {
+		if err := a.setParent(id, parentID); err != nil {
+			// Don't fail - issue is created, just without parent
+			fmt.Printf("Warning: failed to set parent for %s: %v\n", id, err)
+		}
+	}
+
+	return id, nil
 }
 
 func (a *BeadsAdapter) createSubtask(subtask *core.Subtask, parentID string) (string, error) {
@@ -227,15 +289,48 @@ func (a *BeadsAdapter) createSubtask(subtask *core.Subtask, parentID string) (st
 		estimateMinutes = *subtask.EstimatedMinutes
 	}
 
-	return a.runBdCreate(createOptions{
+	// Generate readable ID like "prefix-e1t1s1"
+	readableID := tempIDToReadableID(a.getPrefix(), subtask.TempID)
+
+	// Create without parent (can't use both --id and --parent)
+	id, err := a.runBdCreate(createOptions{
 		title:       subtask.Title,
 		description: desc,
 		itemType:    "task", // Beads uses "task" for subtasks too
 		priority:    2,      // Subtasks default to medium
-		parentID:    parentID,
 		estimate:    estimateMinutes,
 		labels:      subtask.Labels,
+		explicitID:  readableID,
 	})
+	if err != nil {
+		return "", err
+	}
+
+	// Set parent relationship after creation
+	if parentID != "" {
+		if err := a.setParent(id, parentID); err != nil {
+			// Don't fail - issue is created, just without parent
+			fmt.Printf("Warning: failed to set parent for %s: %v\n", id, err)
+		}
+	}
+
+	return id, nil
+}
+
+// setParent sets the parent of an issue using bd update --parent
+func (a *BeadsAdapter) setParent(childID, parentID string) error {
+	if a.dryRun {
+		fmt.Printf("[dry-run] bd update %s --parent %s\n", childID, parentID)
+		return nil
+	}
+
+	cmd := exec.Command("bd", "update", childID, "--parent", parentID)
+	cmd.Dir = a.workingDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("bd update failed: %s", string(output))
+	}
+	return nil
 }
 
 func (a *BeadsAdapter) buildDescription(base string, context interface{}, testing *core.TestingRequirements) string {
@@ -296,11 +391,33 @@ type createOptions struct {
 	description string
 	itemType    string
 	priority    int
-	parentID    string   // For hierarchical parent-child
 	acceptance  string   // Acceptance criteria (epics)
 	design      string   // Design notes (tasks)
 	estimate    int      // Estimate in minutes
 	labels      []string // Labels/tags
+	explicitID  string   // Readable ID (e.g., "prefix-e1", "prefix-e1t1")
+}
+
+// tempIDToReadableID converts a temp_id like "1", "1.1", or "1.1.1" to a
+// readable beads ID like "prefix-e1", "prefix-e1t1", "prefix-e1t1s1".
+func tempIDToReadableID(prefix string, tempID string) string {
+	parts := strings.Split(tempID, ".")
+	if len(parts) == 0 {
+		return ""
+	}
+
+	var suffix string
+	for i, part := range parts {
+		if i == 0 {
+			suffix += "e" + part // Epic
+		} else if i == 1 {
+			suffix += "t" + part // Task
+		} else {
+			suffix += "s" + part // Subtask
+		}
+	}
+
+	return prefix + "-" + suffix
 }
 
 func (a *BeadsAdapter) buildDescriptionWithContext(base string, context *string, testing *core.TestingRequirements) string {
@@ -341,9 +458,9 @@ func (a *BeadsAdapter) runBdCreate(opts createOptions) (string, error) {
 		"--type", opts.itemType,
 	}
 
-	// Add parent for hierarchical relationship
-	if opts.parentID != "" {
-		args = append(args, "--parent", opts.parentID)
+	// Add explicit readable ID (e.g., "prefix-e1", "prefix-e1t1")
+	if opts.explicitID != "" {
+		args = append(args, "--id", opts.explicitID)
 	}
 
 	// Add acceptance criteria for epics
@@ -368,6 +485,9 @@ func (a *BeadsAdapter) runBdCreate(opts createOptions) (string, error) {
 
 	if a.dryRun {
 		fmt.Printf("[dry-run] bd %s\n", strings.Join(args, " "))
+		if opts.explicitID != "" {
+			return opts.explicitID, nil
+		}
 		return fmt.Sprintf("dry-%d", len(opts.title)), nil
 	}
 
@@ -381,8 +501,12 @@ func (a *BeadsAdapter) runBdCreate(opts createOptions) (string, error) {
 		return "", fmt.Errorf("bd create failed: %w", err)
 	}
 
-	// Extract issue ID from output (e.g., "beads-test-a3f8" or "myproject-x7f2")
-	// Beads uses the format: <prefix>-<hash> where prefix is set during bd init
+	// If we specified an explicit ID, return that
+	if opts.explicitID != "" {
+		return opts.explicitID, nil
+	}
+
+	// Otherwise extract issue ID from output (e.g., "prefix-a3f8")
 	re := regexp.MustCompile(`\b[\w-]+-[a-z0-9]{2,}\b`)
 	match := re.FindString(string(output))
 	if match == "" {

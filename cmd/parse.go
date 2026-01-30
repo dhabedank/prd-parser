@@ -22,12 +22,14 @@ var (
 	testingLevel    string
 	llmProvider     string
 	llmModel        string
+	subtaskModel    string // Model for subtasks in multi-stage
 	outputAdapter   string
 	outputPath      string
 	dryRun          bool
 	fromJSON        string // Resume from checkpoint
 	saveJSON        string // Save checkpoint
 	configFile      string // Config file path
+	multiStage      bool   // Use multi-stage parsing
 )
 
 // ParseCmd represents the parse command
@@ -57,6 +59,8 @@ func init() {
 	// LLM options
 	ParseCmd.Flags().StringVarP(&llmProvider, "llm", "l", "auto", "LLM provider (auto/claude-cli/codex-cli/anthropic-api)")
 	ParseCmd.Flags().StringVarP(&llmModel, "model", "m", "", "Model to use (provider-specific)")
+	ParseCmd.Flags().StringVar(&subtaskModel, "subtask-model", "", "Model for subtasks in multi-stage (can be faster/cheaper)")
+	ParseCmd.Flags().BoolVar(&multiStage, "multi-stage", false, "Use multi-stage parsing (parallel, more robust for large PRDs)")
 
 	// Output options
 	ParseCmd.Flags().StringVarP(&outputAdapter, "output", "o", "beads", "Output adapter (beads/json)")
@@ -115,13 +119,6 @@ func runParse(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Printf("Loaded %d epics from checkpoint\n", len(parseResponse.Epics))
 	} else {
-		// Generate new via LLM
-		llmAdapter, err := createLLMAdapter()
-		if err != nil {
-			return fmt.Errorf("failed to create LLM adapter: %w", err)
-		}
-		fmt.Printf("Using LLM: %s\n", llmAdapter.Name())
-
 		// Build config
 		priority := core.Priority(defaultPriority)
 		config := core.ParseConfig{
@@ -133,18 +130,49 @@ func runParse(cmd *cobra.Command, args []string) error {
 			PropagateContext: true,
 		}
 
-		// Parse PRD
 		ctx := context.Background()
-		result, err := core.ParsePRD(ctx, core.ParseOptions{
-			PRDPath:       prdPath,
-			LLMAdapter:    llmAdapter,
-			OutputAdapter: nil, // Don't create items yet
-			Config:        &config,
-		})
-		if err != nil {
-			return fmt.Errorf("parsing failed: %w", err)
+
+		if multiStage {
+			// Multi-stage parsing (parallel, more robust)
+			fmt.Println("Using multi-stage parsing...")
+
+			llmConfig := llm.Config{
+				Model:        llmModel,
+				SubtaskModel: subtaskModel,
+				PreferCLI:    true,
+			}
+			generator := llm.NewMultiStageGenerator(llmConfig)
+			parser := core.NewMultiStageParser(generator, config)
+
+			// Read PRD content
+			prdContent, err := os.ReadFile(prdPath)
+			if err != nil {
+				return fmt.Errorf("failed to read PRD: %w", err)
+			}
+
+			parseResponse, err = parser.Parse(ctx, string(prdContent))
+			if err != nil {
+				return fmt.Errorf("multi-stage parsing failed: %w", err)
+			}
+		} else {
+			// Single-shot parsing (original behavior)
+			llmAdapter, err := createLLMAdapter()
+			if err != nil {
+				return fmt.Errorf("failed to create LLM adapter: %w", err)
+			}
+			fmt.Printf("Using LLM: %s\n", llmAdapter.Name())
+
+			result, err := core.ParsePRD(ctx, core.ParseOptions{
+				PRDPath:       prdPath,
+				LLMAdapter:    llmAdapter,
+				OutputAdapter: nil, // Don't create items yet
+				Config:        &config,
+			})
+			if err != nil {
+				return fmt.Errorf("parsing failed: %w", err)
+			}
+			parseResponse = result.ParseResponse
 		}
-		parseResponse = result.ParseResponse
 
 		// Save checkpoint if requested
 		if saveJSON != "" {

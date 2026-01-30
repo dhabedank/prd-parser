@@ -1,14 +1,97 @@
 package core
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
+// FlexibleString is a type that can unmarshal from either a JSON string or an array of strings.
+// Arrays are joined with "; " to form a single string.
+type FlexibleString string
+
+// UnmarshalJSON implements custom JSON unmarshaling for FlexibleString.
+func (f *FlexibleString) UnmarshalJSON(data []byte) error {
+	// Try unmarshaling as a string first
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*f = FlexibleString(s)
+		return nil
+	}
+
+	// Try unmarshaling as an array of strings
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*f = FlexibleString(strings.Join(arr, "; "))
+		return nil
+	}
+
+	// If neither works, return an error
+	return fmt.Errorf("FlexibleString: cannot unmarshal %s", string(data))
+}
+
+// String returns the string value.
+func (f FlexibleString) String() string {
+	return string(f)
+}
+
+// StringPtr returns a pointer to the string value, or nil if empty.
+func (f FlexibleString) StringPtr() *string {
+	if f == "" {
+		return nil
+	}
+	s := string(f)
+	return &s
+}
+
+// FlexibleStringSlice is a type that can unmarshal from either a JSON array
+// of strings or an object (extracting values).
+type FlexibleStringSlice []string
+
+// UnmarshalJSON implements custom JSON unmarshaling for FlexibleStringSlice.
+func (f *FlexibleStringSlice) UnmarshalJSON(data []byte) error {
+	// Try unmarshaling as an array of strings first
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*f = arr
+		return nil
+	}
+
+	// Try unmarshaling as an object and extract values
+	var obj map[string]interface{}
+	if err := json.Unmarshal(data, &obj); err == nil {
+		var values []string
+		for _, v := range obj {
+			if s, ok := v.(string); ok {
+				values = append(values, s)
+			}
+		}
+		*f = values
+		return nil
+	}
+
+	// Try unmarshaling as a single string
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*f = []string{s}
+		return nil
+	}
+
+	return fmt.Errorf("FlexibleStringSlice: cannot unmarshal %s", string(data))
+}
+
+// ToSlice returns the underlying slice.
+func (f FlexibleStringSlice) ToSlice() []string {
+	return []string(f)
+}
 
 // TestingRequirements captures testing needs at any level.
 // Forces consideration of testing at epic, task, and subtask levels.
 type TestingRequirements struct {
-	UnitTests        *string `json:"unit_tests,omitempty"`        // Functions/methods to test in isolation
-	IntegrationTests *string `json:"integration_tests,omitempty"` // How components interact
-	TypeTests        *string `json:"type_tests,omitempty"`        // Type safety, runtime validation
-	E2ETests         *string `json:"e2e_tests,omitempty"`         // User flows to verify
+	UnitTests        *FlexibleString `json:"unit_tests,omitempty"`        // Functions/methods to test in isolation
+	IntegrationTests *FlexibleString `json:"integration_tests,omitempty"` // How components interact
+	TypeTests        *FlexibleString `json:"type_tests,omitempty"`        // Type safety, runtime validation
+	E2ETests         *FlexibleString `json:"e2e_tests,omitempty"`         // User flows to verify
 }
 
 // ContextBlock propagates business context down the hierarchy.
@@ -64,14 +147,14 @@ type Epic struct {
 // ProjectContext extracted from the PRD.
 // Propagated into every epic, task, and subtask.
 type ProjectContext struct {
-	ProductName     string   `json:"product_name"`               // Name of the product
-	ElevatorPitch   string   `json:"elevator_pitch"`             // One sentence: what and why
-	TargetAudience  string   `json:"target_audience"`            // Primary and secondary users
-	BusinessGoals   []string `json:"business_goals"`             // What the business wants
-	UserGoals       []string `json:"user_goals"`                 // What users want
-	BrandGuidelines interface{} `json:"brand_guidelines,omitempty"` // Voice, tone, visual identity (string or object)
-	TechStack       []string `json:"tech_stack"`                 // Technologies and tools
-	Constraints     []string `json:"constraints"`                // Technical/business constraints
+	ProductName     string              `json:"product_name"`                   // Name of the product
+	ElevatorPitch   string              `json:"elevator_pitch"`                 // One sentence: what and why
+	TargetAudience  string              `json:"target_audience"`                // Primary and secondary users
+	BusinessGoals   FlexibleStringSlice `json:"business_goals"`                 // What the business wants
+	UserGoals       FlexibleStringSlice `json:"user_goals"`                     // What users want
+	BrandGuidelines interface{}         `json:"brand_guidelines,omitempty"`     // Voice, tone, visual identity (string or object)
+	TechStack       FlexibleStringSlice `json:"tech_stack"`                     // Technologies and tools
+	Constraints     FlexibleStringSlice `json:"constraints"`                    // Technical/business constraints
 }
 
 // ParseResponse is the full PRD parsing output.
@@ -145,7 +228,21 @@ func (r *ParseResponse) Validate() error {
 			return &ValidationError{Field: fmt.Sprintf("epics[%d].title", i), Message: "required"}
 		}
 		if len(epic.Tasks) == 0 {
-			return &ValidationError{Field: fmt.Sprintf("epics[%d].tasks", i), Message: "at least one task required"}
+			return &ValidationError{
+				Field:   fmt.Sprintf("epics[%d].tasks", i),
+				Message: fmt.Sprintf("epic '%s' has empty tasks array - must decompose into tasks", epic.Title),
+			}
+		}
+		for j, task := range epic.Tasks {
+			if task.Title == "" {
+				return &ValidationError{Field: fmt.Sprintf("epics[%d].tasks[%d].title", i, j), Message: "required"}
+			}
+			if len(task.Subtasks) == 0 {
+				return &ValidationError{
+					Field:   fmt.Sprintf("epics[%d].tasks[%d].subtasks", i, j),
+					Message: fmt.Sprintf("task '%s' has empty subtasks array - must decompose into subtasks", task.Title),
+				}
+			}
 		}
 	}
 	return nil
