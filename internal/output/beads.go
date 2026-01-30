@@ -95,12 +95,7 @@ func (a *BeadsAdapter) CreateItems(response *core.ParseResponse, config Config) 
 			})
 			tempToExternal[task.TempID] = id
 			result.Stats.Tasks++
-
-			// Establish parent-child relationship
-			if err := a.addDependency(epicID, id, "parent-child"); err == nil {
-				result.Dependencies = append(result.Dependencies, Dependency{From: epicID, To: id, Type: "parent-child"})
-				result.Stats.Dependencies++
-			}
+			// Parent-child relationship established via --parent flag in bd create
 		}
 	}
 
@@ -130,12 +125,7 @@ func (a *BeadsAdapter) CreateItems(response *core.ParseResponse, config Config) 
 				})
 				tempToExternal[subtask.TempID] = id
 				result.Stats.Subtasks++
-
-				// Establish parent-child relationship
-				if err := a.addDependency(taskID, id, "parent-child"); err == nil {
-					result.Dependencies = append(result.Dependencies, Dependency{From: taskID, To: id, Type: "parent-child"})
-					result.Stats.Dependencies++
-				}
+				// Parent-child relationship established via --parent flag in bd create
 			}
 		}
 	}
@@ -182,18 +172,70 @@ func (a *BeadsAdapter) CreateItems(response *core.ParseResponse, config Config) 
 
 func (a *BeadsAdapter) createEpic(epic *core.Epic) (string, error) {
 	desc := a.buildDescription(epic.Description, epic.Context, &epic.Testing)
-	return a.runBdCreate(epic.Title, desc, "epic", 1)
+	acceptance := strings.Join(epic.AcceptanceCriteria, "\n- ")
+	if acceptance != "" {
+		acceptance = "- " + acceptance
+	}
+
+	var estimateMinutes int
+	if epic.EstimatedDays != nil {
+		estimateMinutes = int(*epic.EstimatedDays * 8 * 60) // 8 hours per day
+	}
+
+	return a.runBdCreate(createOptions{
+		title:       epic.Title,
+		description: desc,
+		itemType:    "epic",
+		priority:    1, // Epics default to high priority
+		acceptance:  acceptance,
+		estimate:    estimateMinutes,
+		labels:      epic.Labels,
+	})
 }
 
 func (a *BeadsAdapter) createTask(task *core.Task, parentID string) (string, error) {
 	desc := a.buildDescription(task.Description, task.Context, &task.Testing)
 	priority := mapPriority(task.Priority)
-	return a.runBdCreate(task.Title, desc, "task", priority)
+
+	var designNotes string
+	if task.DesignNotes != nil {
+		designNotes = *task.DesignNotes
+	}
+
+	var estimateMinutes int
+	if task.EstimatedHours != nil {
+		estimateMinutes = int(*task.EstimatedHours * 60)
+	}
+
+	return a.runBdCreate(createOptions{
+		title:       task.Title,
+		description: desc,
+		itemType:    "task",
+		priority:    priority,
+		parentID:    parentID,
+		design:      designNotes,
+		estimate:    estimateMinutes,
+		labels:      task.Labels,
+	})
 }
 
 func (a *BeadsAdapter) createSubtask(subtask *core.Subtask, parentID string) (string, error) {
 	desc := a.buildDescriptionWithContext(subtask.Description, subtask.Context, &subtask.Testing)
-	return a.runBdCreate(subtask.Title, desc, "task", 2) // Beads uses "task" for subtasks too
+
+	var estimateMinutes int
+	if subtask.EstimatedMinutes != nil {
+		estimateMinutes = *subtask.EstimatedMinutes
+	}
+
+	return a.runBdCreate(createOptions{
+		title:       subtask.Title,
+		description: desc,
+		itemType:    "task", // Beads uses "task" for subtasks too
+		priority:    2,      // Subtasks default to medium
+		parentID:    parentID,
+		estimate:    estimateMinutes,
+		labels:      subtask.Labels,
+	})
 }
 
 func (a *BeadsAdapter) buildDescription(base string, context interface{}, testing *core.TestingRequirements) string {
@@ -248,6 +290,19 @@ func (a *BeadsAdapter) buildDescription(base string, context interface{}, testin
 	return desc
 }
 
+// createOptions holds all parameters for bd create
+type createOptions struct {
+	title       string
+	description string
+	itemType    string
+	priority    int
+	parentID    string   // For hierarchical parent-child
+	acceptance  string   // Acceptance criteria (epics)
+	design      string   // Design notes (tasks)
+	estimate    int      // Estimate in minutes
+	labels      []string // Labels/tags
+}
+
 func (a *BeadsAdapter) buildDescriptionWithContext(base string, context *string, testing *core.TestingRequirements) string {
 	desc := base
 
@@ -277,18 +332,43 @@ func (a *BeadsAdapter) buildDescriptionWithContext(base string, context *string,
 	return desc
 }
 
-func (a *BeadsAdapter) runBdCreate(title, description, itemType string, priority int) (string, error) {
+func (a *BeadsAdapter) runBdCreate(opts createOptions) (string, error) {
 	args := []string{
 		"create",
-		title,
-		"--description", description,
-		"--priority", fmt.Sprintf("%d", priority),
-		"--type", itemType,
+		opts.title,
+		"--description", opts.description,
+		"--priority", fmt.Sprintf("%d", opts.priority),
+		"--type", opts.itemType,
+	}
+
+	// Add parent for hierarchical relationship
+	if opts.parentID != "" {
+		args = append(args, "--parent", opts.parentID)
+	}
+
+	// Add acceptance criteria for epics
+	if opts.acceptance != "" {
+		args = append(args, "--acceptance", opts.acceptance)
+	}
+
+	// Add design notes for tasks
+	if opts.design != "" {
+		args = append(args, "--design", opts.design)
+	}
+
+	// Add time estimate
+	if opts.estimate > 0 {
+		args = append(args, "--estimate", fmt.Sprintf("%d", opts.estimate))
+	}
+
+	// Add labels
+	if len(opts.labels) > 0 {
+		args = append(args, "--labels", strings.Join(opts.labels, ","))
 	}
 
 	if a.dryRun {
 		fmt.Printf("[dry-run] bd %s\n", strings.Join(args, " "))
-		return fmt.Sprintf("dry-%d", len(title)), nil
+		return fmt.Sprintf("dry-%d", len(opts.title)), nil
 	}
 
 	cmd := exec.Command("bd", args...)
@@ -333,6 +413,8 @@ func mapPriority(p core.Priority) int {
 		return 2
 	case core.PriorityLow:
 		return 3
+	case core.PriorityVeryLow:
+		return 4
 	default:
 		return 2
 	}

@@ -160,6 +160,42 @@ Every issue specifies what testing is needed:
 - **Type Tests:** Go struct tags validation, JSON schema compliance
 ```
 
+### Priority Evaluation
+
+The LLM evaluates each task and assigns appropriate priority (not just a default):
+
+| Priority | When to Use |
+|----------|-------------|
+| **P0 (critical)** | Blocks all work, security issues, launch blockers |
+| **P1 (high)** | Core functionality, enables other tasks |
+| **P2 (medium)** | Important features, standard work |
+| **P3 (low)** | Nice-to-haves, polish |
+| **P4 (very-low)** | Future considerations, can defer indefinitely |
+
+Foundation/setup work gets higher priority. Polish/UI tweaks get lower priority.
+
+### Labels
+
+Issues are automatically labeled based on:
+- **Layer**: frontend, backend, api, database, infra
+- **Domain**: auth, payments, search, notifications
+- **Skill**: react, go, sql, typescript
+- **Type**: setup, feature, refactor, testing
+
+Labels are extracted from the PRD's tech stack and feature descriptions.
+
+### Design Notes & Acceptance Criteria
+
+- **Epics** include acceptance criteria for when the epic is complete
+- **Tasks** include design notes for technical approach
+
+### Time Estimates
+
+All items include time estimates that flow to beads:
+- Epics: estimated days
+- Tasks: estimated hours
+- Subtasks: estimated minutes
+
 ### Dependencies
 
 Issues are linked with proper blocking relationships:

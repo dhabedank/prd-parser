@@ -66,6 +66,36 @@ Testing distribution guidelines:
 - Specific enough that an LLM could implement without clarification
 - 30 minutes to 2 hours of work
 
+## PRIORITY ASSIGNMENT (EVALUATE EACH TASK)
+
+Do NOT just use the default priority. Evaluate each task based on:
+
+**Priority Levels:**
+- **critical** (P0): Blocks all other work, security issues, data integrity, launch blockers
+- **high** (P1): Core functionality, high user impact, enables many other tasks
+- **medium** (P2): Important features, standard work, improves UX
+- **low** (P3): Nice-to-haves, polish, minor improvements
+- **very-low** (P4): Future considerations, can be deferred indefinitely
+
+**Evaluation Criteria:**
+1. **Dependencies**: Tasks that unblock many others → higher priority
+2. **Risk**: Risky/uncertain work earlier (fail fast) → higher priority
+3. **User Value**: Direct user-facing features vs internal tooling
+4. **Foundation**: Infrastructure/setup work → higher priority (do first)
+5. **Business Impact**: Revenue, user retention, compliance → higher priority
+
+Example: "Set up database schema" should be critical/high (blocks everything), while "Add loading animations" should be low/very-low (polish).
+
+## LABELS (CATEGORIZATION)
+
+Generate 1-4 labels per item from these categories:
+- **Layer**: frontend, backend, api, database, infra, devops
+- **Domain**: auth, payments, search, notifications, analytics
+- **Skill**: react, go, sql, typescript, css
+- **Type**: setup, feature, refactor, testing, docs
+
+Labels help filter and organize work. Extract from PRD tech stack and feature descriptions.
+
 ## DEPENDENCIES
 
 - Use temp_ids for dependencies (e.g., "1.1" depends_on ["1.0"])
@@ -103,15 +133,18 @@ Generate a JSON object with:
 
 1. "project" - Extracted context with these STRING fields: product_name, elevator_pitch, target_audience, brand_guidelines (or null). And these ARRAY OF STRINGS: business_goals, user_goals, tech_stack, constraints
 
-2. "epics" - Array with temp_id, title, description, context, acceptance_criteria, testing, tasks, depends_on, estimated_days
+2. "epics" - Array with temp_id, title, description, context, acceptance_criteria, testing, tasks, depends_on, estimated_days, labels
 
-3. Each task with temp_id, title, description, context, design_notes, testing, subtasks, priority, depends_on, estimated_hours
+3. Each task with temp_id, title, description, context, design_notes, testing, subtasks, priority (EVALUATE - don't just use default!), depends_on, estimated_hours, labels
 
-4. Each subtask with temp_id, title, description, context, testing, estimated_minutes, depends_on
+4. Each subtask with temp_id, title, description, context, testing, estimated_minutes, depends_on, labels
 
 5. "metadata" - Counts and testing coverage summary
 
-IMPORTANT: Propagate context! Every subtask should remind the implementer of the business purpose and user needs.
+IMPORTANT:
+- Propagate context! Every subtask should remind the implementer of the business purpose and user needs.
+- EVALUATE priority for each task based on dependencies, risk, and user value - don't just assign the default!
+- Generate relevant labels from tech stack, domain, and work type.
 
 Return ONLY valid JSON, no markdown fencing.`
 

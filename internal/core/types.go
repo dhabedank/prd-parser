@@ -29,6 +29,7 @@ type Subtask struct {
 	Testing          TestingRequirements `json:"testing"`                     // Testing requirements
 	EstimatedMinutes *int                `json:"estimated_minutes,omitempty"` // 15-120 minutes
 	DependsOn        []string            `json:"depends_on"`                  // Temp IDs this depends on
+	Labels           []string            `json:"labels,omitempty"`            // Tags for categorization
 }
 
 // Task is a logical unit of work containing subtasks (2-8hrs total)
@@ -39,10 +40,11 @@ type Task struct {
 	Context        interface{}         `json:"context"`                   // Propagated + task-specific context (object or string)
 	DesignNotes    *string             `json:"design_notes,omitempty"`    // Technical approach
 	Testing        TestingRequirements `json:"testing"`                   // Testing strategy
-	Priority       Priority            `json:"priority"`                  // critical/high/medium/low
+	Priority       Priority            `json:"priority"`                  // critical/high/medium/low/very-low
 	Subtasks       []Subtask           `json:"subtasks"`                  // Atomic subtasks
 	DependsOn      []string            `json:"depends_on"`                // Temp IDs this depends on
 	EstimatedHours *float64            `json:"estimated_hours,omitempty"` // Total including subtasks
+	Labels         []string            `json:"labels,omitempty"`          // Tags for categorization
 }
 
 // Epic is a major feature or milestone containing tasks (1-4 weeks)
@@ -56,6 +58,7 @@ type Epic struct {
 	Tasks              []Task              `json:"tasks"`                    // Tasks that complete this epic
 	DependsOn          []string            `json:"depends_on"`               // Epic temp IDs this depends on
 	EstimatedDays      *float64            `json:"estimated_days,omitempty"` // Working days for entire epic
+	Labels             []string            `json:"labels,omitempty"`         // Tags for categorization
 }
 
 // ProjectContext extracted from the PRD.
@@ -104,6 +107,7 @@ const (
 	PriorityHigh     Priority = "high"
 	PriorityMedium   Priority = "medium"
 	PriorityLow      Priority = "low"
+	PriorityVeryLow  Priority = "very-low"
 )
 
 // ParseConfig configures PRD parsing behavior.
