@@ -1,0 +1,16 @@
+# Binaries
+prd-parser
+*.exe
+
+# Build
+dist/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Test
+coverage.out
