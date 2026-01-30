@@ -60,17 +60,20 @@ Testing distribution guidelines:
 - Include acceptance criteria (bullet points)
 - 1-4 weeks of work
 - **EVERY EPIC MUST HAVE TASKS - empty tasks[] is INVALID**
+- **Acceptance criteria should be VERIFIABLE** - include at least one "can run/see/test X" criterion
 
 **Tasks** (temp_id: "1.1", "1.2", "2.1"):
 - Logical groupings within an epic
 - Design notes for technical approach
 - 2-8 hours of work
 - **EVERY TASK MUST HAVE SUBTASKS - empty subtasks[] is INVALID**
+- **Include operational steps** - if a task adds dependencies, include installing them; if it changes config, include verifying it works
 
 **Subtasks** (temp_id: "1.1.1", "1.1.2"):
 - Atomic, independently completable actions
 - Specific enough that an LLM could implement without clarification
 - 30 minutes to 2 hours of work
+- **End with verification** - the last subtask in a sequence should verify the work (run tests, start server, check output)
 
 **CRITICAL:**
 - Empty tasks[] array = INVALID output, triggers retry
@@ -114,13 +117,28 @@ Labels help filter and organize work. Extract from PRD tech stack and feature de
 - Testing tasks should depend on implementation tasks
 - Cross-epic dependencies are allowed
 
+## PRACTICAL COMPLETENESS
+
+An agent following these tasks should end up with WORKING software. Include:
+
+- **Setup tasks early**: Project initialization, dependency installation, environment configuration
+- **Verification after changes**: After adding code, there should be a way to verify it works
+- **Don't assume magic**: If something needs to be installed, configured, or run - make it a task
+- **Acceptance = runnable**: Epic acceptance criteria should include "the feature can be demonstrated"
+
+Common gaps to avoid:
+- Adding a dependency without a task to install it
+- Creating a schema without a task to run migrations/generate types
+- Building a feature without a task to verify it works locally
+
 ## ANTI-PATTERNS TO AVOID
 
 1. Vague tasks like "Implement feature" - be SPECIFIC
 2. Missing context - every subtask should know WHY it matters
 3. Skipping tests - testing is NOT optional
 4. Flat structure - USE the hierarchy
-5. Disconnected work - every item should trace to business value`
+5. Disconnected work - every item should trace to business value
+6. **Missing operational steps** - if code needs dependencies, config, or builds, include those tasks`
 
 // UserPromptTemplate is the template for user messages.
 const UserPromptTemplate = `Analyze this PRD and generate a hierarchical breakdown.

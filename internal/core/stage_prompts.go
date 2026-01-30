@@ -32,6 +32,8 @@ Each epic should have:
 - Epics should be independently deployable milestones
 - Foundation/infrastructure epics should come first
 - Do NOT include "tasks" field - tasks are generated in Stage 2
+- **First epic should include project setup** - environment, dependencies, basic config
+- **Acceptance criteria must be verifiable** - include at least one "can run/demonstrate X"
 
 ## OUTPUT REQUIREMENTS
 
@@ -85,6 +87,8 @@ Return a JSON object with:
 - PROPAGATE CONTEXT: Include why this task matters to the business
 - Set appropriate priority based on dependencies and risk
 - Do NOT include "subtasks" field - subtasks are generated in Stage 3
+- **Include operational tasks**: If code adds dependencies, include installation; if it changes schemas, include migration/type generation
+- **End sequences with verification**: After a set of related tasks, include a task to verify everything works together
 
 ## OUTPUT REQUIREMENTS
 
@@ -140,6 +144,8 @@ Return a JSON object with:
 - Subtasks should be 30 minutes to 2 hours of work
 - Subtasks should be specific enough for an LLM to implement without clarification
 - Keep context propagation - include why this matters
+- **Don't skip practical steps**: Installing packages, running builds, verifying output
+- **Last subtask should verify**: Run tests, start dev server, check the feature works
 
 ## OUTPUT REQUIREMENTS
 
