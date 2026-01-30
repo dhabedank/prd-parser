@@ -1,5 +1,7 @@
 # prd-parser
 
+> **🚧 Active Development** - This project is new and actively evolving. Expect breaking changes. Contributions and feedback welcome!
+
 **Turn your PRD into a ready-to-work beads project in one command.**
 
 prd-parser uses LLM guardrails to transform Product Requirements Documents into a hierarchical issue structure (Epics → Tasks → Subtasks) and creates them directly in [beads](https://github.com/beads-project/beads) - the git-backed issue tracker for AI-driven development.
@@ -9,11 +11,31 @@ prd-parser uses LLM guardrails to transform Product Requirements Documents into 
 prd-parser parse ./docs/prd.md
 ```
 
+## The 0→1 Problem
+
+Starting a new project is exciting. You have a vision, maybe a PRD, and you're ready to build. But then:
+
+1. **The breakdown problem** - You need to turn that PRD into actionable tasks. This is tedious and error-prone. You lose context as you go.
+
+2. **The context problem** - By the time you're implementing subtask #47, you've forgotten why it matters. What was the business goal? Who are the users? What constraints apply?
+
+3. **The handoff problem** - If you're using AI to help implement, it needs that context too. Copy-pasting from your PRD for every task doesn't scale.
+
+**prd-parser + beads solves all three.** Write your PRD once, run one command, and get a complete project structure with context propagated to every level - ready for you or Claude to start implementing.
+
 ## Why prd-parser + beads?
 
-**The Problem**: You have a PRD. You need to break it into trackable tasks. Doing this manually loses context - by the time you're implementing subtask 47, you've forgotten the business purpose. LLMs can help, but they output unstructured text that still needs manual entry.
+**For greenfield projects**, this is the fastest path from idea to structured, trackable work:
 
-**The Solution**: prd-parser uses Go struct guardrails to force the LLM to output valid, hierarchical JSON with:
+| Without prd-parser | With prd-parser |
+|-------------------|-----------------|
+| Read PRD, manually create issues | One command |
+| Forget context by subtask #10 | Context propagated everywhere |
+| Testing requirements? Maybe later | Testing enforced at every level |
+| Dependencies tracked in your head | Dependencies explicit and tracked |
+| Copy-paste context for AI helpers | AI has full context in every issue |
+
+**How it works**: prd-parser uses Go struct guardrails to force the LLM to output valid, hierarchical JSON with:
 - **Context propagation** - Business purpose flows from PRD → Epic → Task → Subtask
 - **Testing at every level** - Unit, integration, type, and E2E requirements enforced
 - **Dependencies tracked** - Issues know what blocks them
