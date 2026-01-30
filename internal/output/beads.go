@@ -2,11 +2,13 @@ package output
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 
 	"github.com/dhabedank/prd-parser/internal/core"
+	"github.com/dhabedank/prd-parser/internal/tui"
 )
 
 // BeadsAdapter creates issues in beads using the bd CLI.
@@ -79,6 +81,99 @@ func (a *BeadsAdapter) IsAvailable() (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+// BeadsStatus holds detailed status information about beads.
+type BeadsStatus struct {
+	CLIInstalled  bool
+	Initialized   bool
+	ExistingCount int
+	Prefix        string
+	WorkingDir    string
+}
+
+// CheckBeadsStatus returns detailed status about beads in the working directory.
+func CheckBeadsStatus(workingDir string) *BeadsStatus {
+	if workingDir == "" {
+		workingDir = "."
+	}
+
+	status := &BeadsStatus{
+		WorkingDir: workingDir,
+	}
+
+	// Check if bd CLI is installed
+	if _, err := exec.LookPath("bd"); err == nil {
+		status.CLIInstalled = true
+	}
+
+	// Check if beads is initialized (look for .beads directory)
+	beadsDir := workingDir + "/.beads"
+	if workingDir == "." {
+		beadsDir = ".beads"
+	}
+	if _, err := os.Stat(beadsDir); err == nil {
+		status.Initialized = true
+	}
+
+	// Count existing issues
+	if status.CLIInstalled && status.Initialized {
+		cmd := exec.Command("bd", "list", "--status=all")
+		cmd.Dir = workingDir
+		output, err := cmd.Output()
+		if err == nil {
+			// Count non-empty lines
+			lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+			for _, line := range lines {
+				if strings.TrimSpace(line) != "" {
+					status.ExistingCount++
+				}
+			}
+		}
+
+		// Get prefix
+		adapter := &BeadsAdapter{workingDir: workingDir}
+		status.Prefix = adapter.getPrefix()
+	}
+
+	return status
+}
+
+// PrintBeadsStatus prints a helpful status message about beads.
+func PrintBeadsStatus(status *BeadsStatus) {
+	if !status.CLIInstalled {
+		fmt.Printf("\n%s beads CLI (bd) not found\n", tui.ErrorStyle.Render("!"))
+		fmt.Println("  Install beads to create issues:")
+		fmt.Printf("    %s\n", tui.HelpStyle.Render("npm install -g beads-cli"))
+		fmt.Printf("    %s\n", tui.HelpStyle.Render("# or: go install github.com/beads-project/beads@latest"))
+		fmt.Println()
+		return
+	}
+
+	if !status.Initialized {
+		fmt.Printf("\n%s beads not initialized in this directory\n", tui.WarningStyle.Render("!"))
+		fmt.Println("  Initialize beads first:")
+		fmt.Printf("    %s\n", tui.HelpStyle.Render("bd init --prefix myproject"))
+		fmt.Println()
+		return
+	}
+
+	// beads is ready
+	if status.ExistingCount > 0 {
+		fmt.Printf("\n%s Found %d existing issues (prefix: %s)\n",
+			tui.WarningStyle.Render("!"),
+			status.ExistingCount,
+			tui.ModelStyle.Render(status.Prefix),
+		)
+		fmt.Println("  New issues will be added alongside existing ones.")
+		fmt.Println("  Use --dry-run to preview before creating.")
+		fmt.Println()
+	} else {
+		fmt.Printf("\n%s beads ready (prefix: %s)\n",
+			tui.SuccessStyle.Render("*"),
+			tui.ModelStyle.Render(status.Prefix),
+		)
+	}
 }
 
 func (a *BeadsAdapter) CreateItems(response *core.ParseResponse, config Config) (*CreateResult, error) {

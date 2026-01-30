@@ -120,6 +120,16 @@ func runParse(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Using output: %s\n", outAdapter.Name())
 
+	// Show beads status if using beads output
+	if outputAdapter == "beads" {
+		status := output.CheckBeadsStatus(".")
+		if !status.CLIInstalled || !status.Initialized {
+			output.PrintBeadsStatus(status)
+			return fmt.Errorf("beads not ready - see above for setup instructions")
+		}
+		output.PrintBeadsStatus(status)
+	}
+
 	// Wrap the output adapter to satisfy core.OutputAdapter interface
 	wrappedOutput := &outputAdapterWrapper{
 		adapter: outAdapter,
