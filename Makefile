@@ -19,5 +19,14 @@ lint:
 clean:
 	rm -f prd-parser coverage.out
 
+# Install to /usr/local/bin (may require sudo) or ~/go/bin
 install: build
-	cp prd-parser $(GOPATH)/bin/
+	@if [ -w /usr/local/bin ]; then \
+		cp prd-parser /usr/local/bin/; \
+		echo "Installed to /usr/local/bin/prd-parser"; \
+	else \
+		mkdir -p ~/go/bin; \
+		cp prd-parser ~/go/bin/; \
+		echo "Installed to ~/go/bin/prd-parser"; \
+		echo "Make sure ~/go/bin is in your PATH"; \
+	fi

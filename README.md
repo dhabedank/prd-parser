@@ -46,10 +46,16 @@ Starting a new project is exciting. You have a vision, maybe a PRD, and you're r
 ### 1. Install prd-parser
 
 ```bash
+# Clone, build, install, cleanup
+git clone https://github.com/dhabedank/prd-parser.git
+cd prd-parser && make install && cd .. && rm -rf prd-parser
+```
+
+Or keep the source around:
+```bash
 git clone https://github.com/dhabedank/prd-parser.git
 cd prd-parser
-make build
-make install  # Copies to $GOPATH/bin
+make install
 ```
 
 ### 2. Create a new project with beads
