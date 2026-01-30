@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -95,28 +96,41 @@ func (g *MultiStageGenerator) GenerateTasks(ctx context.Context, epic core.Epic,
 func (g *MultiStageGenerator) GenerateSubtasks(ctx context.Context, task core.Task, epicContext string, project core.ProjectContext, config core.ParseConfig) ([]core.Subtask, error) {
 	userPrompt := core.BuildStage3Prompt(task, epicContext, project, config)
 
-	output, err := g.callClaude(ctx, g.subtaskModel, core.Stage3SystemPrompt, userPrompt)
-	if err != nil {
-		return nil, err
+	// Retry up to 2 times for transient LLM output issues
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		output, err := g.callClaude(ctx, g.subtaskModel, core.Stage3SystemPrompt, userPrompt)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		jsonStr := extractJSON(output)
+		if jsonStr == "" {
+			lastErr = fmt.Errorf("no valid JSON in Stage 3 response for task %s", task.TempID)
+			continue
+		}
+
+		var response struct {
+			Subtasks []core.Subtask `json:"subtasks"`
+		}
+		if err := json.Unmarshal([]byte(jsonStr), &response); err != nil {
+			// Save debug info on parse error
+			debugFile := filepath.Join(os.TempDir(), fmt.Sprintf("prd-parser-stage3-%s.json", task.TempID))
+			_ = os.WriteFile(debugFile, []byte(jsonStr), 0644)
+			lastErr = fmt.Errorf("Stage 3 JSON parse error for task %s: %w", task.TempID, err)
+			continue
+		}
+
+		if len(response.Subtasks) == 0 {
+			lastErr = fmt.Errorf("Stage 3 returned no subtasks for task %s", task.TempID)
+			continue
+		}
+
+		return response.Subtasks, nil
 	}
 
-	jsonStr := extractJSON(output)
-	if jsonStr == "" {
-		return nil, fmt.Errorf("no valid JSON in Stage 3 response for task %s", task.TempID)
-	}
-
-	var response struct {
-		Subtasks []core.Subtask `json:"subtasks"`
-	}
-	if err := json.Unmarshal([]byte(jsonStr), &response); err != nil {
-		return nil, fmt.Errorf("Stage 3 JSON parse error for task %s: %w", task.TempID, err)
-	}
-
-	if len(response.Subtasks) == 0 {
-		return nil, fmt.Errorf("Stage 3 returned no subtasks for task %s", task.TempID)
-	}
-
-	return response.Subtasks, nil
+	return nil, lastErr
 }
 
 // callClaude invokes the Claude CLI with the given prompts.

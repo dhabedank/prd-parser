@@ -12,6 +12,18 @@ type FlexibleString string
 
 // UnmarshalJSON implements custom JSON unmarshaling for FlexibleString.
 func (f *FlexibleString) UnmarshalJSON(data []byte) error {
+	// Handle null
+	if string(data) == "null" {
+		*f = FlexibleString("")
+		return nil
+	}
+
+	// Handle boolean (LLMs sometimes return false/true instead of strings)
+	if string(data) == "false" || string(data) == "true" {
+		*f = FlexibleString("") // Treat as empty/not applicable
+		return nil
+	}
+
 	// Try unmarshaling as a string first
 	var s string
 	if err := json.Unmarshal(data, &s); err == nil {
