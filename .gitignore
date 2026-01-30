@@ -15,7 +15,9 @@ dist/
 # Test
 coverage.out
 .testing
-docs
+
+# Ignore plan files but keep architecture docs
+docs/plans/
 
 # bv (beads viewer) local config and caches
 .bv/
