@@ -391,6 +391,80 @@ The PRD file argument is optional when using `--from-json`.
 prd-parser parse --from-json /tmp/prd-parser-checkpoint.json
 ```
 
+## Refining Issues After Generation
+
+After parsing, you may find issues that are misaligned with your product vision. The `refine` command lets you correct an issue and automatically propagate fixes to related issues.
+
+### Basic Usage
+
+```bash
+# Correct an epic that went off-track
+prd-parser refine test-e6 --feedback "RealHerd is voice-first lead intelligence, not a CRM with pipeline management"
+
+# Preview changes without applying
+prd-parser refine test-e3t2 --feedback "Should use OpenRouter, not direct OpenAI" --dry-run
+
+# Include PRD for better context
+prd-parser refine test-e6 --feedback "Focus on conversation insights" --prd docs/prd.md
+```
+
+### How It Works
+
+1. **Analyze**: LLM identifies wrong concepts in the target issue (e.g., "pipeline tracking", "deal stages")
+2. **Correct**: Generates corrected version with right concepts ("conversation insights", "activity visibility")
+3. **Scan**: Searches ALL issues (across all epics) for the same wrong concepts
+4. **Propagate**: Regenerates affected issues with correction context
+5. **Update**: Applies changes via `bd update`
+
+### Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--feedback`, `-f` | required | What's wrong and how to fix it |
+| `--cascade` | true | Also update children of target issue |
+| `--scan-all` | true | Scan all issues for same misalignment |
+| `--dry-run` | false | Preview changes without applying |
+| `--prd` | | Path to PRD file for context |
+
+### Example Output
+
+```
+$ prd-parser refine test-e6 --feedback "RealHerd is voice-first, not CRM"
+
+Loading issue test-e6...
+  Found: Brokerage Dashboard & Reporting
+
+Analyzing misalignment...
+
+Identified misalignment:
+  - pipeline tracking
+  - deal management
+  - contract stages
+
+Corrected version:
+  Title: Agent Activity Dashboard & Conversation Insights
+  Description: Real-time visibility into agent conversations...
+
+Scanning for affected issues...
+  Found 3 children
+  Found 2 issues with similar misalignment
+
+--- Changes to apply ---
+Target: test-e6
+  + test-e6t3: Pipeline Overview Component
+  + test-e6t4: Deal Tracking Interface
+  + test-e3t5: CRM Pipeline Sync
+
+Applying corrections...
+  ✓ Updated test-e6
+  ✓ Updated test-e6t3
+  ✓ Updated test-e6t4
+  ✓ Updated test-e3t5
+
+--- Summary ---
+Updated: 1 target + 4 related issues
+```
+
 ## LLM Providers
 
 ### Zero-Config (Recommended)
