@@ -3,30 +3,34 @@ package tui
 import "fmt"
 
 // ModelPricing contains pricing per 1M tokens for various models.
-// Prices are in USD.
+// Prices are in USD. Updated: 2026-01-30 from https://docs.anthropic.com/en/docs/about-claude/models
 var ModelPricing = map[string]struct {
 	InputPer1M  float64
 	OutputPer1M float64
 }{
-	// Claude models
-	"claude-opus-4-5-20251101":    {InputPer1M: 15.0, OutputPer1M: 75.0},
-	"claude-opus-4-20250514":      {InputPer1M: 15.0, OutputPer1M: 75.0},
-	"claude-sonnet-4-20250514":    {InputPer1M: 3.0, OutputPer1M: 15.0},
-	"claude-3-5-sonnet-20241022":  {InputPer1M: 3.0, OutputPer1M: 15.0},
-	"claude-3-5-haiku-20241022":   {InputPer1M: 0.80, OutputPer1M: 4.0},
-	"claude-3-opus-20240229":      {InputPer1M: 15.0, OutputPer1M: 75.0},
-	"claude-3-sonnet-20240229":    {InputPer1M: 3.0, OutputPer1M: 15.0},
-	"claude-3-haiku-20240307":     {InputPer1M: 0.25, OutputPer1M: 1.25},
+	// Claude 4.5 models (latest)
+	"claude-opus-4-5-20251101":   {InputPer1M: 5.0, OutputPer1M: 25.0},
+	"claude-sonnet-4-5-20250929": {InputPer1M: 3.0, OutputPer1M: 15.0},
+	"claude-haiku-4-5-20251001":  {InputPer1M: 1.0, OutputPer1M: 5.0},
+
+	// Claude 4.x legacy models
+	"claude-opus-4-1-20250805": {InputPer1M: 15.0, OutputPer1M: 75.0},
+	"claude-sonnet-4-20250514": {InputPer1M: 3.0, OutputPer1M: 15.0},
+	"claude-opus-4-20250514":   {InputPer1M: 15.0, OutputPer1M: 75.0},
+
+	// Claude 3.x legacy models
+	"claude-3-7-sonnet-20250219": {InputPer1M: 3.0, OutputPer1M: 15.0},
+	"claude-3-haiku-20240307":    {InputPer1M: 0.25, OutputPer1M: 1.25},
 
 	// OpenAI models
-	"gpt-4o":          {InputPer1M: 2.5, OutputPer1M: 10.0},
-	"gpt-4o-mini":     {InputPer1M: 0.15, OutputPer1M: 0.60},
-	"gpt-4-turbo":     {InputPer1M: 10.0, OutputPer1M: 30.0},
-	"o1":              {InputPer1M: 15.0, OutputPer1M: 60.0},
-	"o1-mini":         {InputPer1M: 1.10, OutputPer1M: 4.40},
-	"o3":              {InputPer1M: 10.0, OutputPer1M: 40.0},
-	"o3-mini":         {InputPer1M: 1.10, OutputPer1M: 4.40},
-	"codex":           {InputPer1M: 15.0, OutputPer1M: 60.0},
+	"gpt-4o":      {InputPer1M: 2.5, OutputPer1M: 10.0},
+	"gpt-4o-mini": {InputPer1M: 0.15, OutputPer1M: 0.60},
+	"gpt-4-turbo": {InputPer1M: 10.0, OutputPer1M: 30.0},
+	"o1":          {InputPer1M: 15.0, OutputPer1M: 60.0},
+	"o1-mini":     {InputPer1M: 1.10, OutputPer1M: 4.40},
+	"o3":          {InputPer1M: 10.0, OutputPer1M: 40.0},
+	"o3-mini":     {InputPer1M: 1.10, OutputPer1M: 4.40},
+	"codex":       {InputPer1M: 15.0, OutputPer1M: 60.0},
 
 	// Fallback for unknown models (use conservative estimate)
 	"default": {InputPer1M: 5.0, OutputPer1M: 15.0},

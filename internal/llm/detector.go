@@ -14,12 +14,18 @@ type ModelInfo struct {
 }
 
 // claudeModels lists Claude models available via CLI.
+// Updated: 2026-01-30 from https://docs.anthropic.com/en/docs/about-claude/models
 var claudeModels = []ModelInfo{
-	{ID: "claude-opus-4-5-20251101", Name: "Claude Opus 4.5", Description: "Most capable, best for complex tasks", Provider: "anthropic"},
-	{ID: "claude-opus-4-20250514", Name: "Claude Opus 4", Description: "High capability, great for analysis", Provider: "anthropic"},
-	{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Description: "Balanced speed and capability", Provider: "anthropic"},
-	{ID: "claude-3-5-sonnet-20241022", Name: "Claude 3.5 Sonnet", Description: "Fast and capable", Provider: "anthropic"},
-	{ID: "claude-3-5-haiku-20241022", Name: "Claude 3.5 Haiku", Description: "Fastest, most cost-effective", Provider: "anthropic"},
+	// Latest 4.5 models
+	{ID: "claude-opus-4-5-20251101", Name: "Claude Opus 4.5", Description: "Premium model, maximum intelligence ($5/$25 per MTok)", Provider: "anthropic"},
+	{ID: "claude-sonnet-4-5-20250929", Name: "Claude Sonnet 4.5", Description: "Best balance of speed and capability ($3/$15 per MTok)", Provider: "anthropic"},
+	{ID: "claude-haiku-4-5-20251001", Name: "Claude Haiku 4.5", Description: "Fastest, most cost-effective ($1/$5 per MTok)", Provider: "anthropic"},
+	// Legacy models
+	{ID: "claude-opus-4-1-20250805", Name: "Claude Opus 4.1", Description: "Previous premium model ($15/$75 per MTok)", Provider: "anthropic"},
+	{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Description: "Previous balanced model ($3/$15 per MTok)", Provider: "anthropic"},
+	{ID: "claude-opus-4-20250514", Name: "Claude Opus 4", Description: "Legacy premium ($15/$75 per MTok)", Provider: "anthropic"},
+	{ID: "claude-3-7-sonnet-20250219", Name: "Claude 3.7 Sonnet", Description: "Legacy fast model ($3/$15 per MTok)", Provider: "anthropic"},
+	{ID: "claude-3-haiku-20240307", Name: "Claude 3 Haiku", Description: "Legacy budget model ($0.25/$1.25 per MTok)", Provider: "anthropic"},
 }
 
 // codexModels lists Codex/OpenAI models available via CLI.

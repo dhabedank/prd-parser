@@ -37,19 +37,19 @@ func TestEstimateCost(t *testing.T) {
 		wantMax      float64
 	}{
 		{
-			name:         "claude opus",
+			name:         "claude opus 4.5",
 			model:        "claude-opus-4-5-20251101",
 			inputTokens:  1000,
 			outputTokens: 500,
-			wantMin:      0.05,
-			wantMax:      0.06,
+			wantMin:      0.017,
+			wantMax:      0.018,
 		},
 		{
-			name:         "claude haiku",
-			model:        "claude-3-5-haiku-20241022",
+			name:         "claude haiku 4.5",
+			model:        "claude-haiku-4-5-20251001",
 			inputTokens:  1000,
 			outputTokens: 500,
-			wantMin:      0.002,
+			wantMin:      0.003,
 			wantMax:      0.004,
 		},
 		{
