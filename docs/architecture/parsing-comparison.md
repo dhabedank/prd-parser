@@ -1,190 +1,89 @@
 # Parsing Approaches Comparison
 
-## Single-Shot vs Multi-Stage vs Validated
+## Single-Shot vs Multi-Stage
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        SINGLE-SHOT (Original)                                │
+│                        SINGLE-SHOT PARSING                                   │
 │                                                                              │
 │   PRD ──────────────────────────────────────────────────────────► Issues    │
-│         One massive LLM call generates everything                            │
+│         One LLM call generates everything                                    │
 │                                                                              │
-│   Problems:                                                                  │
-│   • Output token limits cause truncation                                     │
-│   • Empty tasks[] arrays on large PRDs                                       │
+│   Best for:                                                                  │
+│   ✓ Small PRDs (< 300 lines)                                                 │
+│   ✓ Quick iterations                                                         │
+│   ✓ Simple project structures                                                │
+│                                                                              │
+│   Limitations:                                                               │
+│   • Output token limits can cause truncation                                 │
+│   • May return empty tasks[] on large PRDs                                   │
 │   • No parallelization                                                       │
 │   • Retry = redo everything                                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      MULTI-STAGE (Current)                                   │
+│                      MULTI-STAGE PARALLEL PARSING                            │
 │                                                                              │
 │   PRD ──► Epics ──┬──► Tasks ──┬──► Subtasks ──► Issues                     │
 │                   │            │                                             │
 │                   │  parallel  │  parallel                                   │
 │                   └────────────┴────────────                                 │
 │                                                                              │
-│   Benefits:                                                                  │
-│   ✓ Smaller, focused prompts                                                 │
-│   ✓ Parallel execution                                                       │
-│   ✓ Retry individual stages                                                  │
-│   ✓ Different models per stage                                               │
-│                                                                              │
-│   Still missing:                                                             │
-│   • Validation between stages                                                │
-│   • Tech stack awareness                                                     │
-│   • Build verification                                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      VALIDATED (Proposed)                                    │
-│                                                                              │
-│   PRD ──► Tech ──► Epics ──► Review ──► Tasks ──► Review ──► Subtasks      │
-│           Stack              │                    │                          │
-│                              │                    │                          │
-│                          ┌───┴───┐            ┌───┴───┐                      │
-│                          │Inject │            │Inject │                      │
-│                          │Setup  │            │Install│                      │
-│                          │Epic   │            │Tasks  │                      │
-│                          └───────┘            └───────┘                      │
-│                                                                              │
-│           ──► Build ──► Dependency ──► Issues                               │
-│               Verify     Resolution                                          │
-│               │                                                              │
-│           ┌───┴───┐                                                          │
-│           │Add    │                                                          │
-│           │Missing│                                                          │
-│           │Steps  │                                                          │
-│           └───────┘                                                          │
+│   Best for:                                                                  │
+│   ✓ Large PRDs (≥ 300 lines)                                                 │
+│   ✓ Complex project structures                                               │
+│   ✓ Maximum reliability                                                      │
 │                                                                              │
 │   Benefits:                                                                  │
-│   ✓ All multi-stage benefits                                                 │
-│   ✓ Tech-stack-aware task injection                                          │
-│   ✓ Guaranteed buildable output                                              │
-│   ✓ No missing setup/install steps                                           │
+│   ✓ Smaller, focused prompts per stage                                       │
+│   ✓ Parallel execution (3 epics, 5 tasks concurrent)                         │
+│   ✓ Retry individual stages without redoing all                              │
+│   ✓ Different models per stage (--subtask-model)                             │
+│   ✓ Automatic retry on parse errors                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## What Gets Injected Per Tech Stack
+## Smart Detection (Default)
+
+prd-parser automatically chooses based on PRD line count:
+
+| PRD Size | Strategy | Reason |
+|----------|----------|--------|
+| < 300 lines | Single-shot | Faster, simpler |
+| ≥ 300 lines | Multi-stage | More reliable |
+
+Override with `--single-shot` or `--multi-stage` flags.
+
+Adjust threshold with `--smart-threshold <lines>` (0 to disable).
+
+## When to Use Each
+
+### Use Single-Shot When:
+- PRD is small and focused
+- You want fastest possible execution
+- Project has simple structure (few epics)
+
+### Use Multi-Stage When:
+- PRD is large or detailed
+- You've seen empty tasks[] with single-shot
+- You want maximum reliability
+- You need different models for subtasks (cost optimization)
+
+## Optional Validation
+
+Both modes support `--validate` to run a final LLM review:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ DETECTED: Next.js + Convex + Clerk + Telnyx                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
+│                      VALIDATION PASS (--validate)                            │
 │                                                                              │
-│ AUTO-INJECTED EPIC 0: Project Initialization                                 │
-│ ├── Task 0.1: Environment Setup                                              │
-│ │   ├── Subtask: Create .env.local with required variables                   │
-│ │   ├── Subtask: Document all required API keys                              │
-│ │   └── Subtask: Create .env.example template                                │
-│ │                                                                            │
-│ ├── Task 0.2: Package Installation                                           │
-│ │   ├── Subtask: Run bun install                                             │
-│ │   └── Subtask: Verify all dependencies resolve                             │
-│ │                                                                            │
-│ ├── Task 0.3: Convex Setup                                                   │
-│ │   ├── Subtask: Run npx convex dev (first time)                             │
-│ │   ├── Subtask: Configure CONVEX_DEPLOYMENT                                 │
-│ │   └── Subtask: Verify Convex dashboard access                              │
-│ │                                                                            │
-│ ├── Task 0.4: Clerk Setup                                                    │
-│ │   ├── Subtask: Create Clerk application                                    │
-│ │   ├── Subtask: Configure OAuth providers (if needed)                       │
-│ │   ├── Subtask: Set CLERK_SECRET_KEY, NEXT_PUBLIC_CLERK_*                   │
-│ │   └── Subtask: Test auth flow locally                                      │
-│ │                                                                            │
-│ └── Task 0.5: Telnyx Setup                                                   │
-│     ├── Subtask: Create Telnyx Mission Control account                       │
-│     ├── Subtask: Create TeXML application                                    │
-│     ├── Subtask: Purchase or port phone number                               │
-│     ├── Subtask: Configure webhook URLs (use ngrok for local)                │
-│     └── Subtask: Test inbound/outbound call                                  │
+│   After generation, asks LLM to review the complete plan:                    │
+│   • Missing setup/initialization tasks?                                      │
+│   • Backend built without UI to test it?                                     │
+│   • Dependencies mentioned but not installed?                                │
+│   • Acceptance criteria that can't be verified?                              │
 │                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ INJECTED AFTER SCHEMA TASKS:                                                 │
-│ • "Regenerate Convex types" after any schema.ts change                       │
-│ • "Run bun install" after any package.json change                            │
-│ • "Restart dev server" after env variable changes                            │
-│                                                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ INJECTED BEFORE FEATURE TASKS:                                               │
-│ • Verify previous setup tasks completed                                      │
-│ • Check dev server is running                                                │
-│ • Verify database connection                                                 │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-## Tech Stack Detection Rules
-
-```yaml
-# Proposed .prd-parser.yaml extension
-
-tech_stack_rules:
-  convex:
-    detect:
-      - file: "convex/schema.ts"
-      - package: "convex"
-    inject:
-      - epic: "Project Setup"
-        tasks:
-          - "Initialize Convex (npx convex dev)"
-          - "Configure environment variables"
-      - after_pattern: "schema.ts"
-        task: "Regenerate Convex types"
-
-  clerk:
-    detect:
-      - package: "@clerk/nextjs"
-      - prd_mentions: ["Clerk", "authentication"]
-    inject:
-      - epic: "Project Setup"
-        tasks:
-          - "Create Clerk application"
-          - "Configure Clerk environment"
-          - "Set up ClerkProvider"
-
-  telnyx:
-    detect:
-      - package: "telnyx"
-      - prd_mentions: ["Telnyx", "voice", "telephony"]
-    inject:
-      - epic: "Project Setup"
-        tasks:
-          - "Create Telnyx account"
-          - "Configure phone number"
-          - "Set up webhooks"
-```
-
-## Build Validation Questions
-
-The final stage asks these questions:
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       BUILD VALIDATION CHECKLIST                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│ Can an agent clone this repo and run it?                                     │
-│                                                                              │
-│ □ Is there a task to run `bun install` / `npm install`?                      │
-│ □ Is there a task to set up environment variables?                           │
-│ □ Is there a task to initialize the database?                                │
-│ □ Is there a task to start the dev server?                                   │
-│ □ Are all external service credentials documented?                           │
-│                                                                              │
-│ Will the code compile after all tasks are done?                              │
-│                                                                              │
-│ □ Are types generated before code that uses them?                            │
-│ □ Are dependencies installed before imports?                                 │
-│ □ Are migrations run before queries?                                         │
-│ □ Is there a final "verify build" task?                                      │
-│                                                                              │
-│ Can the tests run?                                                           │
-│                                                                              │
-│ □ Is there a task to set up test environment?                                │
-│ □ Are test dependencies installed?                                           │
-│ □ Is there a task to run the test suite?                                     │
-│                                                                              │
+│   Output: Warnings printed to console                                        │
+│   Note: Advisory only - does not modify the generated plan                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

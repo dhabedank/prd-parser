@@ -242,8 +242,9 @@ prd-parser parse ./prd.md --testing comprehensive  # or minimal, standard
 # Preview without creating (dry run)
 prd-parser parse ./prd.md --dry-run
 
-# Include/exclude sections in issue descriptions
-prd-parser parse ./prd.md --include-context --include-testing
+# Save/resume from checkpoint (useful for large PRDs)
+prd-parser parse ./prd.md --save-json checkpoint.json
+prd-parser parse ./prd.md --from-json checkpoint.json
 ```
 
 ### Full Options
@@ -257,17 +258,17 @@ prd-parser parse ./prd.md --include-context --include-testing
 | `--testing` | | comprehensive | Testing level (minimal/standard/comprehensive) |
 | `--llm` | `-l` | auto | LLM provider (auto/claude-cli/codex-cli/anthropic-api) |
 | `--model` | `-m` | | Model to use (provider-specific) |
-| `--multi-stage` | | | Force multi-stage parsing |
-| `--single-shot` | | | Force single-shot parsing |
+| `--multi-stage` | | false | Force multi-stage parsing |
+| `--single-shot` | | false | Force single-shot parsing |
 | `--smart-threshold` | | 300 | Line count for auto multi-stage (0 to disable) |
 | `--validate` | | false | Run validation pass to check for gaps |
 | `--subtask-model` | | | Model for subtasks in multi-stage (can be faster/cheaper) |
 | `--output` | `-o` | beads | Output adapter (beads/json) |
 | `--output-path` | | | Output path for JSON adapter |
-| `--working-dir` | `-w` | . | Working directory for beads |
 | `--dry-run` | | false | Preview without creating items |
-| `--include-context` | | true | Include context in descriptions |
-| `--include-testing` | | true | Include testing requirements |
+| `--from-json` | | | Resume from saved JSON checkpoint (skip LLM) |
+| `--save-json` | | | Save generated JSON to file (for resume) |
+| `--config` | | | Config file path (default: .prd-parser.yaml) |
 
 ### Smart Parsing (Default Behavior)
 
@@ -396,14 +397,18 @@ prd-parser/
 ├── internal/
 │   ├── core/              # Core types and orchestration
 │   │   ├── types.go       # Hierarchical structs (guardrails)
-│   │   ├── prompts.go     # Embedded system/user prompts
-│   │   └── parser.go      # LLM → Output orchestration
+│   │   ├── prompts.go     # Single-shot system/user prompts
+│   │   ├── stage_prompts.go # Multi-stage prompts (Stages 1-3)
+│   │   ├── parser.go      # Single-shot LLM → Output orchestration
+│   │   ├── multistage.go  # Multi-stage parallel parser
+│   │   └── validate.go    # Validation pass logic
 │   ├── llm/               # LLM adapters
 │   │   ├── adapter.go     # Interface definition
 │   │   ├── claude_cli.go  # Claude Code CLI adapter
 │   │   ├── codex_cli.go   # Codex CLI adapter
 │   │   ├── anthropic_api.go # API fallback
-│   │   └── detector.go    # Auto-detection logic
+│   │   ├── detector.go    # Auto-detection logic
+│   │   └── multistage_generator.go # Multi-stage LLM calls
 │   └── output/            # Output adapters
 │       ├── adapter.go     # Interface definition
 │       ├── beads.go       # beads issue tracker
