@@ -33,6 +33,8 @@ var (
 	multiStage       bool   // Force multi-stage parsing
 	singleShot       bool   // Force single-shot parsing
 	validate         bool   // Run validation pass after generation
+	noReview         bool   // Disable automatic LLM review pass
+	interactiveMode  bool   // Enable human-in-the-loop mode
 	smartParseLines  int    // Threshold for smart parsing (lines)
 )
 
@@ -69,6 +71,8 @@ func init() {
 	ParseCmd.Flags().BoolVar(&multiStage, "multi-stage", false, "Force multi-stage parsing")
 	ParseCmd.Flags().BoolVar(&singleShot, "single-shot", false, "Force single-shot parsing")
 	ParseCmd.Flags().BoolVar(&validate, "validate", false, "Run validation pass to check for gaps after generation")
+	ParseCmd.Flags().BoolVar(&noReview, "no-review", false, "Disable automatic LLM review pass (review is ON by default)")
+	ParseCmd.Flags().BoolVar(&interactiveMode, "interactive", false, "Enable human-in-the-loop mode (review at each stage)")
 	ParseCmd.Flags().IntVar(&smartParseLines, "smart-threshold", 300, "Line count threshold for auto multi-stage (0 to disable)")
 
 	// Output options
@@ -167,7 +171,22 @@ func runParse(cmd *cobra.Command, args []string) error {
 
 		ctx := context.Background()
 
-		if useMultiStage {
+		if interactiveMode {
+			// Interactive mode - human-in-the-loop at each stage
+			fmt.Println("Interactive mode enabled - you'll review epics before task generation")
+			llmConfig := llm.Config{
+				Model:        llmModel,
+				SubtaskModel: subtaskModel,
+				PreferCLI:    true,
+			}
+			generator := llm.NewMultiStageGenerator(llmConfig)
+			parser := core.NewInteractiveParser(generator, config)
+
+			parseResponse, err = parser.Parse(ctx, string(prdContent))
+			if err != nil {
+				return fmt.Errorf("interactive parsing failed: %w", err)
+			}
+		} else if useMultiStage {
 			// Multi-stage parsing (parallel, more robust)
 			llmConfig := llm.Config{
 				Model:        llmModel,
@@ -210,7 +229,10 @@ func runParse(cmd *cobra.Command, args []string) error {
 			if err := os.WriteFile(saveJSON, data, 0644); err != nil {
 				return fmt.Errorf("failed to save checkpoint: %w", err)
 			}
-			fmt.Printf("Saved checkpoint to: %s\n", saveJSON)
+			fmt.Printf("\nCheckpoint saved to: %s\n", saveJSON)
+			fmt.Println("To review and create:")
+			fmt.Println("  1. Edit the JSON file to adjust structure")
+			fmt.Printf("  2. Run: prd-parser parse --from-json %s\n", saveJSON)
 		}
 
 		// Run validation if requested
@@ -236,10 +258,39 @@ func runParse(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
+
+		// Run review pass (default, unless --no-review or --interactive)
+		// In interactive mode, human IS the review
+		if !noReview && !interactiveMode {
+			fmt.Println("\nReviewing structure...")
+			reviewResult, err := runReview(ctx, parseResponse, string(prdContent), llmModel)
+			if err != nil {
+				fmt.Printf("Warning: Review failed: %v\n", err)
+			} else if reviewResult.WasModified {
+				fmt.Printf("✓ Review fixed issues: %s\n", reviewResult.ReviewNotes)
+				parseResponse = reviewResult.Response
+				// Update checkpoint if we saved one
+				if saveJSON != "" {
+					data, err := json.MarshalIndent(parseResponse, "", "  ")
+					if err == nil {
+						_ = os.WriteFile(saveJSON, data, 0644)
+						fmt.Printf("Updated checkpoint: %s\n", saveJSON)
+					}
+				}
+			} else {
+				fmt.Println("✓ Review passed - no changes needed")
+			}
+		}
+	}
+
+	// Auto-checkpoint before creation (allows recovery if creation fails)
+	autoCheckpoint := filepath.Join(os.TempDir(), "prd-parser-last.json")
+	if data, err := json.MarshalIndent(parseResponse, "", "  "); err == nil {
+		_ = os.WriteFile(autoCheckpoint, data, 0644)
 	}
 
 	// Create items via output adapter
-	fmt.Println("Creating items...")
+	fmt.Println("\nCreating items...")
 	createResult, err := wrappedOutput.CreateItems(parseResponse)
 	if err != nil {
 		// Auto-save checkpoint on failure for retry
@@ -457,4 +508,22 @@ func runValidation(ctx context.Context, response *core.ParseResponse, prdContent
 
 	// Parse the validation result
 	return core.ParseValidationResult(output)
+}
+
+// runReview runs the review pass to check and fix structural issues.
+func runReview(ctx context.Context, response *core.ParseResponse, prdContent string, model string) (*core.ReviewResult, error) {
+	// Use the same model as parsing, or default
+	if model == "" {
+		model = "claude-sonnet-4-20250514"
+	}
+
+	// Create adapter for review
+	config := llm.Config{Model: model, PreferCLI: true}
+	adapter := llm.NewClaudeCLIAdapter(config)
+	if !adapter.IsAvailable() {
+		return nil, fmt.Errorf("Claude CLI not available for review")
+	}
+
+	// Run review
+	return core.ReviewAndFix(ctx, response, prdContent, adapter)
 }

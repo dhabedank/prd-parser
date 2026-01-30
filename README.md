@@ -262,6 +262,8 @@ prd-parser parse ./prd.md --from-json checkpoint.json
 | `--single-shot` | | false | Force single-shot parsing |
 | `--smart-threshold` | | 300 | Line count for auto multi-stage (0 to disable) |
 | `--validate` | | false | Run validation pass to check for gaps |
+| `--no-review` | | false | Disable automatic LLM review pass (review ON by default) |
+| `--interactive` | | false | Human-in-the-loop mode (review epics before task generation) |
 | `--subtask-model` | | | Model for subtasks in multi-stage (can be faster/cheaper) |
 | `--output` | `-o` | beads | Output adapter (beads/json) |
 | `--output-path` | | | Output path for JSON adapter |
@@ -303,6 +305,90 @@ or
 ⚠ Plan validation found gaps:
   • No task to install dependencies after adding @clerk/nextjs
   • Auth API built but no login page to test it
+```
+
+### Review Pass (Default)
+
+By default, prd-parser runs an automatic review pass after generation that checks for and fixes structural issues:
+
+- **Missing "Project Foundation" epic** as Epic 1 (setup should come first)
+- **Feature epics not depending on Epic 1** (all work depends on setup)
+- **Missing setup tasks** in foundation epic
+- **Incorrect dependency chains** (setup → backend → frontend)
+
+```bash
+# Review is on by default
+prd-parser parse ./prd.md
+
+# See: "Reviewing structure..."
+# See: "✓ Review fixed issues: Added Project Foundation epic..."
+# Or:  "✓ Review passed - no changes needed"
+
+# Disable if you want raw output
+prd-parser parse ./prd.md --no-review
+```
+
+### Interactive Mode
+
+For human-in-the-loop review during generation:
+
+```bash
+prd-parser parse docs/prd.md --interactive
+```
+
+In interactive mode, you'll review epics after Stage 1 before task generation continues:
+
+```
+=== Stage 1 Complete: 4 Epics Generated ===
+
+Proposed Epics:
+  1. Project Foundation (depends on: none)
+      Initialize Next.js, Convex, Clerk setup
+  2. Voice Infrastructure (depends on: 1)
+      Telnyx phone system integration
+  3. AI Conversations (depends on: 1)
+      LFM 2.5 integration for call handling
+  4. CRM Integration (depends on: 1)
+      Follow Up Boss sync
+
+[Enter] continue, [e] edit in $EDITOR, [r] regenerate, [a] add epic:
+```
+
+**Options:**
+- **Enter** - Accept epics and continue to task generation
+- **e** - Open epics in your `$EDITOR` for manual editing
+- **r** - Regenerate epics from scratch
+- **a** - Add a new epic
+
+Interactive mode skips the automatic review pass since you are the reviewer.
+
+### Checkpoint Workflow (Manual Review)
+
+For full manual control over the generated structure:
+
+**Step 1: Generate Draft**
+```bash
+prd-parser parse docs/prd.md --save-json draft.json --dry-run
+```
+
+**Step 2: Review and Edit**
+
+Open `draft.json` in your editor. You can:
+- Reorder epics (change array order)
+- Add/remove epics, tasks, or subtasks
+- Fix dependencies
+- Adjust priorities and estimates
+
+**Step 3: Create from Edited Draft**
+```bash
+prd-parser parse --from-json draft.json
+```
+
+The PRD file argument is optional when using `--from-json`.
+
+**Auto-Recovery**: If creation fails mid-way, prd-parser saves a checkpoint to `/tmp/prd-parser-checkpoint.json`. Retry with:
+```bash
+prd-parser parse --from-json /tmp/prd-parser-checkpoint.json
 ```
 
 ## LLM Providers
