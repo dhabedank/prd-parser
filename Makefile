@@ -19,14 +19,17 @@ lint:
 clean:
 	rm -f prd-parser coverage.out
 
-# Install to /usr/local/bin (may require sudo) or ~/go/bin
+# Install to /usr/local/bin (uses sudo if needed)
 install: build
 	@if [ -w /usr/local/bin ]; then \
 		cp prd-parser /usr/local/bin/; \
+		echo "Installed to /usr/local/bin/prd-parser"; \
+	elif command -v sudo >/dev/null 2>&1; then \
+		sudo cp prd-parser /usr/local/bin/; \
 		echo "Installed to /usr/local/bin/prd-parser"; \
 	else \
 		mkdir -p ~/go/bin; \
 		cp prd-parser ~/go/bin/; \
 		echo "Installed to ~/go/bin/prd-parser"; \
-		echo "Make sure ~/go/bin is in your PATH"; \
+		echo "Run: echo 'export PATH=\"\$$HOME/go/bin:\$$PATH\"' >> ~/.zshrc && source ~/.zshrc"; \
 	fi
