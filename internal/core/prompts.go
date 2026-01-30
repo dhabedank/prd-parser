@@ -52,10 +52,31 @@ Testing distribution guidelines:
 - Business logic: unit_tests, integration_tests
 - User flows: e2e_tests
 
+## MANDATORY: EPIC 1 MUST BE PROJECT FOUNDATION (CRITICAL)
+
+**Epic 1 is ALWAYS "Project Foundation/Setup"** - this is not optional. Before ANY feature can be built, the project must exist!
+
+**Epic 1 must include tasks for:**
+- Initialize the project framework (Next.js, Vite, etc. based on tech stack)
+- Install and configure database/backend (Convex, Supabase, Prisma, etc.)
+- Set up authentication (Clerk, Auth0, NextAuth, etc.)
+- Install core dependencies from the tech stack
+- Environment variable configuration
+- Basic project structure and configuration files
+
+**Example Epic 1:**
+  temp_id: "1"
+  title: "Project Foundation & Core Setup"
+  description: "Initialize project, install dependencies, configure database and authentication"
+  acceptance_criteria: ["Can run dev server and see basic page", "Database is connected", "Auth works"]
+
+**All feature epics (2, 3, 4...) MUST have depends_on: ["1"]**
+
 ## HIERARCHY GUIDELINES (NO EMPTY ARRAYS)
 
 **Epics** (temp_id: "1", "2", "3"):
-- Major features or milestones
+- Epic 1 is ALWAYS project foundation/setup
+- Epics 2+ are major features or milestones
 - Should be independently deployable/releasable
 - Include acceptance criteria (bullet points)
 - 1-4 weeks of work
@@ -110,12 +131,34 @@ Generate 1-4 labels per item from these categories:
 
 Labels help filter and organize work. Extract from PRD tech stack and feature descriptions.
 
-## DEPENDENCIES
+## DEPENDENCIES (CRITICAL - MOST ITEMS SHOULD HAVE depends_on)
 
-- Use temp_ids for dependencies (e.g., "1.1" depends_on ["1.0"])
-- Infrastructure/setup epics should come first
-- Testing tasks should depend on implementation tasks
-- Cross-epic dependencies are allowed
+**Dependencies are NOT optional.** Most tasks depend on something. Empty depends_on for ALL items is WRONG.
+
+**Common dependency patterns:**
+- Database/schema setup → API endpoints that query it
+- Authentication setup → Pages/routes that require auth
+- SDK/library installation → Code that uses the SDK
+- Data models → CRUD operations on those models
+- Backend endpoints → Frontend pages that call them
+- Config/environment → Features that need that config
+- Infrastructure/setup epics → Feature epics that build on them
+
+**Example task dependencies within an epic:**
+  Task 1.1: "Set up database schema" - depends_on: []
+  Task 1.2: "Create API endpoints for users" - depends_on: ["1.1"]
+  Task 1.3: "Build user management UI" - depends_on: ["1.2"]
+
+**Example subtask dependencies within a task:**
+  Subtask 1.1.1: "Create TypeScript types" - depends_on: []
+  Subtask 1.1.2: "Write unit test" - depends_on: ["1.1.1"]
+  Subtask 1.1.3: "Implement function" - depends_on: ["1.1.1", "1.1.2"]
+
+**How to decide depends_on:**
+- "Can I start this if X isn't done?" → If no, X goes in depends_on
+- Foundation/setup items usually have no dependencies
+- Most other items depend on at least one thing
+- Cross-epic dependencies are allowed (e.g., Epic 3 depends on Epic 2)
 
 ## PRACTICAL COMPLETENESS
 
@@ -161,16 +204,21 @@ const UserPromptTemplate = `Analyze this PRD and generate a hierarchical breakdo
 
 Analyze the PRD's complexity and scope to determine the RIGHT structure. Do NOT force arbitrary counts.
 
-**Guidelines based on PRD scope:**
-- Tiny PRD (single feature, bug fix): 1 epic, 1-2 tasks
-- Small PRD (single user flow): 1-2 epics, 2-4 tasks each
-- Medium PRD (MVP, several features): 3-5 epics, 3-6 tasks each
-- Large PRD (full product spec): 5-8 epics, 4-8 tasks each
+**Remember: Epic 1 is ALWAYS Project Foundation** (initializing the project, dependencies, database, auth).
+Then add feature epics based on the PRD's actual features.
 
-**User's guidance (use as rough targets, NOT hard requirements):**
-- Target epics: ~%d (but use fewer if PRD is simple, more if complex)
-- Target tasks per epic: ~%d (but adjust to actual epic scope)
-- Target subtasks per task: ~%d (only if task needs decomposition)
+**Guidelines based on PRD scope:**
+- Tiny PRD (single feature, bug fix): 2 epics (1 foundation + 1 feature), 1-2 tasks each
+- Small PRD (single user flow): 2-3 epics (1 foundation + 1-2 features), 2-4 tasks each
+- Medium PRD (MVP, several features): 4-6 epics (1 foundation + 3-5 features), 3-6 tasks each
+- Large PRD (full product spec): 5-8 epics (1 foundation + 4-7 features), 4-8 tasks each
+
+**User's guidance (rough targets only - PRD content drives actual count):**
+- Suggested epics: ~%d (but the actual PRD scope determines the real number)
+- Suggested tasks per epic: ~%d (adjust to actual epic scope)
+- Suggested subtasks per task: ~%d (only if task needs decomposition)
+
+**Don't hit the target if it doesn't fit the PRD. A PRD with 5 major features needs 6 epics (foundation + 5), not 3.**
 
 **Key principle:** The PRD's actual content should drive the structure. A simple PRD with 1 feature should NOT have 5 epics. A complex PRD may need more than the targets.
 

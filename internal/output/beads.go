@@ -171,13 +171,14 @@ func (a *BeadsAdapter) CreateItems(response *core.ParseResponse, config Config) 
 		}
 	}
 
-	// Phase 4: Establish explicit dependencies (blocks relationships)
+	// Phase 4: Establish explicit dependencies (depends_on relationships)
+	// Format: taskID depends on blockerID
 	for _, epic := range response.Epics {
 		epicID := tempToExternal[epic.TempID]
 		for _, depTempID := range epic.DependsOn {
 			if blockerID, ok := tempToExternal[depTempID]; ok && epicID != "" {
-				if err := a.addDependency(blockerID, epicID, "blocks"); err == nil {
-					result.Dependencies = append(result.Dependencies, Dependency{From: blockerID, To: epicID, Type: "blocks"})
+				if err := a.addDependency(epicID, blockerID); err == nil {
+					result.Dependencies = append(result.Dependencies, Dependency{From: epicID, To: blockerID, Type: "depends_on"})
 					result.Stats.Dependencies++
 				}
 			}
@@ -187,8 +188,8 @@ func (a *BeadsAdapter) CreateItems(response *core.ParseResponse, config Config) 
 			taskID := tempToExternal[task.TempID]
 			for _, depTempID := range task.DependsOn {
 				if blockerID, ok := tempToExternal[depTempID]; ok && taskID != "" {
-					if err := a.addDependency(blockerID, taskID, "blocks"); err == nil {
-						result.Dependencies = append(result.Dependencies, Dependency{From: blockerID, To: taskID, Type: "blocks"})
+					if err := a.addDependency(taskID, blockerID); err == nil {
+						result.Dependencies = append(result.Dependencies, Dependency{From: taskID, To: blockerID, Type: "depends_on"})
 						result.Stats.Dependencies++
 					}
 				}
@@ -198,8 +199,8 @@ func (a *BeadsAdapter) CreateItems(response *core.ParseResponse, config Config) 
 				subtaskID := tempToExternal[subtask.TempID]
 				for _, depTempID := range subtask.DependsOn {
 					if blockerID, ok := tempToExternal[depTempID]; ok && subtaskID != "" {
-						if err := a.addDependency(blockerID, subtaskID, "blocks"); err == nil {
-							result.Dependencies = append(result.Dependencies, Dependency{From: blockerID, To: subtaskID, Type: "blocks"})
+						if err := a.addDependency(subtaskID, blockerID); err == nil {
+							result.Dependencies = append(result.Dependencies, Dependency{From: subtaskID, To: blockerID, Type: "depends_on"})
 							result.Stats.Dependencies++
 						}
 					}
@@ -516,15 +517,21 @@ func (a *BeadsAdapter) runBdCreate(opts createOptions) (string, error) {
 	return match, nil
 }
 
-func (a *BeadsAdapter) addDependency(fromID, toID, depType string) error {
+// addDependency adds a dependency where dependentID depends on blockerID.
+// Syntax: bd dep add <dependent> <blocker>
+func (a *BeadsAdapter) addDependency(dependentID, blockerID string) error {
 	if a.dryRun {
-		fmt.Printf("[dry-run] bd dep add %s %s %s\n", fromID, depType, toID)
+		fmt.Printf("[dry-run] bd dep add %s %s\n", dependentID, blockerID)
 		return nil
 	}
 
-	cmd := exec.Command("bd", "dep", "add", fromID, depType, toID)
+	cmd := exec.Command("bd", "dep", "add", dependentID, blockerID)
 	cmd.Dir = a.workingDir
-	return cmd.Run()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("bd dep add failed: %s", string(output))
+	}
+	return nil
 }
 
 func mapPriority(p core.Priority) int {
