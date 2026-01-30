@@ -23,13 +23,13 @@ type MultiStageGenerator struct {
 func NewMultiStageGenerator(config Config) *MultiStageGenerator {
 	mainModel := config.Model
 	if mainModel == "" {
-		mainModel = "claude-sonnet-4-20250514"
+		mainModel = "claude-opus-4-5-20250514" // Use Opus 4.5 for best quality
 	}
 
-	// Use haiku for subtasks (smaller, faster) unless specified
+	// Use same model for subtasks unless specified (consistency over cost savings)
 	subtaskModel := config.SubtaskModel
 	if subtaskModel == "" {
-		subtaskModel = mainModel // Default to same model for consistency
+		subtaskModel = mainModel
 	}
 
 	return &MultiStageGenerator{

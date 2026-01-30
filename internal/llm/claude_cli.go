@@ -25,7 +25,7 @@ type ClaudeCLIAdapter struct {
 func NewClaudeCLIAdapter(config Config) *ClaudeCLIAdapter {
 	model := config.Model
 	if model == "" {
-		model = "claude-sonnet-4-20250514"
+		model = "claude-opus-4-5-20250514" // Use Opus 4.5 for best quality
 	}
 	return &ClaudeCLIAdapter{model: model}
 }

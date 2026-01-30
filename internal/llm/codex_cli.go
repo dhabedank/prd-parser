@@ -19,7 +19,7 @@ type CodexCLIAdapter struct {
 func NewCodexCLIAdapter(config Config) *CodexCLIAdapter {
 	model := config.Model
 	if model == "" {
-		model = "o3" // Default to o3 for best reasoning
+		model = "o3" // Default to o3 for best reasoning (latest available)
 	}
 	return &CodexCLIAdapter{model: model}
 }
