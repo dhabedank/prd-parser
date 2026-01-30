@@ -1,6 +1,6 @@
 {
   "name": "prd-parser",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Turn your PRD into a ready-to-work beads project in one command",
   "keywords": [
     "prd",
