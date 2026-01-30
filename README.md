@@ -8,7 +8,7 @@ prd-parser uses LLM guardrails to transform Product Requirements Documents into 
 
 ```bash
 # One command: PRD → structured beads issues
-prd-parser parse ./docs/prd.md
+prd-parser parse ./docs/prd.md --full-context
 ```
 
 ## The 0→1 Problem
@@ -114,8 +114,10 @@ task operations without context-switching to a GUI.
 ### 4. Parse your PRD into beads issues
 
 ```bash
-prd-parser parse docs/prd.md
+prd-parser parse docs/prd.md --full-context
 ```
+
+The `--full-context` flag ensures every generation stage has access to your original PRD, producing the most coherent results.
 
 That's it. Your PRD is now a structured beads project with **readable hierarchical IDs**:
 
@@ -230,21 +232,24 @@ Issues are linked with proper blocking relationships:
 ### Parse Options
 
 ```bash
+# Recommended: full context mode for best quality
+prd-parser parse ./prd.md --full-context
+
 # Control structure size
-prd-parser parse ./prd.md --epics 5 --tasks 8 --subtasks 4
+prd-parser parse ./prd.md --full-context --epics 5 --tasks 8 --subtasks 4
 
 # Set default priority
-prd-parser parse ./prd.md --priority high
+prd-parser parse ./prd.md --full-context --priority high
 
 # Choose testing level
-prd-parser parse ./prd.md --testing comprehensive  # or minimal, standard
+prd-parser parse ./prd.md --full-context --testing comprehensive  # or minimal, standard
 
 # Preview without creating (dry run)
-prd-parser parse ./prd.md --dry-run
+prd-parser parse ./prd.md --full-context --dry-run
 
 # Save/resume from checkpoint (useful for large PRDs)
-prd-parser parse ./prd.md --save-json checkpoint.json
-prd-parser parse ./prd.md --from-json checkpoint.json
+prd-parser parse ./prd.md --full-context --save-json checkpoint.json
+prd-parser parse --from-json checkpoint.json
 ```
 
 ### Full Options
@@ -261,6 +266,7 @@ prd-parser parse ./prd.md --from-json checkpoint.json
 | `--multi-stage` | | false | Force multi-stage parsing |
 | `--single-shot` | | false | Force single-shot parsing |
 | `--smart-threshold` | | 300 | Line count for auto multi-stage (0 to disable) |
+| `--full-context` | | false | Pass PRD to all stages (recommended for best quality) |
 | `--validate` | | false | Run validation pass to check for gaps |
 | `--no-review` | | false | Disable automatic LLM review pass (review ON by default) |
 | `--interactive` | | false | Human-in-the-loop mode (review epics before task generation) |
@@ -280,6 +286,93 @@ prd-parser automatically chooses the best parsing strategy based on PRD size:
 - **Large PRDs** (≥ 300 lines): Multi-stage parallel parsing (more reliable)
 
 Override with `--single-shot` or `--multi-stage` flags, or adjust threshold with `--smart-threshold`.
+
+### Full Context Mode (Recommended)
+
+By default, multi-stage parsing only passes the PRD to Stage 1 (epic generation). Stages 2 and 3 only see summaries from the previous stage.
+
+**`--full-context` changes this** - every stage gets the original PRD as their "north star":
+
+```bash
+prd-parser parse docs/prd.md --full-context
+```
+
+**Why this matters:**
+
+| Mode | Stage 1 (Epics) | Stage 2 (Tasks) | Stage 3 (Subtasks) |
+|------|----------------|-----------------|-------------------|
+| Default | Full PRD | Epic summary only | Task summary only |
+| `--full-context` | Full PRD | Epic + **PRD** | Task + **PRD** |
+
+With `--full-context`, each agent:
+- Stays grounded in original requirements
+- Doesn't invent features not in the PRD
+- Doesn't miss requirements that ARE in the PRD
+- Produces more focused, coherent output
+
+**Results comparison** (same PRD):
+
+| Metric | Default | Full Context |
+|--------|---------|--------------|
+| Epics | 11 | 8 |
+| Tasks | 65 | 49 |
+| Subtasks | 264 | 202 |
+
+Fewer items with full context = less redundancy, more focused on actual requirements.
+
+### Common Flag Combinations
+
+**Best quality (recommended):**
+```bash
+prd-parser parse docs/prd.md --full-context
+```
+Every stage sees the PRD. Best for accuracy and coherence.
+
+**Preview before committing:**
+```bash
+prd-parser parse docs/prd.md --full-context --dry-run
+```
+See what would be created without actually creating issues.
+
+**Save checkpoint for manual review:**
+```bash
+prd-parser parse docs/prd.md --full-context --save-json draft.json --dry-run
+# Edit draft.json manually
+prd-parser parse --from-json draft.json
+```
+
+**Human-in-the-loop for large/complex PRDs:**
+```bash
+prd-parser parse docs/prd.md --interactive
+```
+Review and edit epics before task generation.
+
+**Quick parse for small PRDs:**
+```bash
+prd-parser parse docs/prd.md --single-shot
+```
+Faster single LLM call. Works well for PRDs under 300 lines.
+
+**Cost-optimized for large PRDs:**
+```bash
+prd-parser parse docs/prd.md --full-context --subtask-model claude-sonnet-4-20250514
+```
+Use Opus for epics/tasks, Sonnet for subtasks (cheaper, still good quality).
+
+**Maximum validation:**
+```bash
+prd-parser parse docs/prd.md --full-context --validate
+```
+Full context + validation pass to catch gaps.
+
+**Debug/iterate on structure:**
+```bash
+prd-parser parse docs/prd.md --full-context --save-json iter1.json --dry-run
+# Review iter1.json, note issues
+prd-parser parse docs/prd.md --full-context --save-json iter2.json --dry-run
+# Compare, pick the better one
+prd-parser parse --from-json iter2.json
+```
 
 ### Validation Pass
 
