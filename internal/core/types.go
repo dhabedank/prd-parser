@@ -36,7 +36,7 @@ type Task struct {
 	TempID         string              `json:"temp_id"`                   // Hierarchical ID like "1.1"
 	Title          string              `json:"title"`                     // Clear, actionable title
 	Description    string              `json:"description"`               // What needs to be accomplished
-	Context        ContextBlock        `json:"context"`                   // Propagated + task-specific context
+	Context        interface{}         `json:"context"`                   // Propagated + task-specific context (object or string)
 	DesignNotes    *string             `json:"design_notes,omitempty"`    // Technical approach
 	Testing        TestingRequirements `json:"testing"`                   // Testing strategy
 	Priority       Priority            `json:"priority"`                  // critical/high/medium/low
@@ -50,7 +50,7 @@ type Epic struct {
 	TempID             string              `json:"temp_id"`                  // Simple ID like "1", "2"
 	Title              string              `json:"title"`                    // Major feature or milestone
 	Description        string              `json:"description"`              // What this delivers
-	Context            ContextBlock        `json:"context"`                  // Business/user/brand context
+	Context            interface{}         `json:"context"`                  // Business/user/brand context (object or string)
 	AcceptanceCriteria []string            `json:"acceptance_criteria"`      // When this epic is complete
 	Testing            TestingRequirements `json:"testing"`                  // Epic-level testing strategy
 	Tasks              []Task              `json:"tasks"`                    // Tasks that complete this epic
@@ -66,7 +66,7 @@ type ProjectContext struct {
 	TargetAudience  string   `json:"target_audience"`            // Primary and secondary users
 	BusinessGoals   []string `json:"business_goals"`             // What the business wants
 	UserGoals       []string `json:"user_goals"`                 // What users want
-	BrandGuidelines *string  `json:"brand_guidelines,omitempty"` // Voice, tone, visual identity
+	BrandGuidelines interface{} `json:"brand_guidelines,omitempty"` // Voice, tone, visual identity (string or object)
 	TechStack       []string `json:"tech_stack"`                 // Technologies and tools
 	Constraints     []string `json:"constraints"`                // Technical/business constraints
 }

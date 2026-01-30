@@ -181,12 +181,12 @@ func (a *BeadsAdapter) CreateItems(response *core.ParseResponse, config Config) 
 }
 
 func (a *BeadsAdapter) createEpic(epic *core.Epic) (string, error) {
-	desc := a.buildDescription(epic.Description, &epic.Context, &epic.Testing)
+	desc := a.buildDescription(epic.Description, epic.Context, &epic.Testing)
 	return a.runBdCreate(epic.Title, desc, "epic", 1)
 }
 
 func (a *BeadsAdapter) createTask(task *core.Task, parentID string) (string, error) {
-	desc := a.buildDescription(task.Description, &task.Context, &task.Testing)
+	desc := a.buildDescription(task.Description, task.Context, &task.Testing)
 	priority := mapPriority(task.Priority)
 	return a.runBdCreate(task.Title, desc, "task", priority)
 }
@@ -196,25 +196,33 @@ func (a *BeadsAdapter) createSubtask(subtask *core.Subtask, parentID string) (st
 	return a.runBdCreate(subtask.Title, desc, "task", 2) // Beads uses "task" for subtasks too
 }
 
-func (a *BeadsAdapter) buildDescription(base string, context *core.ContextBlock, testing *core.TestingRequirements) string {
+func (a *BeadsAdapter) buildDescription(base string, context interface{}, testing *core.TestingRequirements) string {
 	desc := base
 
 	if a.includeContext && context != nil {
-		parts := []string{}
-		if context.BusinessContext != nil {
-			parts = append(parts, fmt.Sprintf("- **Business Context:** %s", *context.BusinessContext))
-		}
-		if context.TargetUsers != nil {
-			parts = append(parts, fmt.Sprintf("- **Target Users:** %s", *context.TargetUsers))
-		}
-		if context.BrandVoice != nil {
-			parts = append(parts, fmt.Sprintf("- **Brand Voice:** %s", *context.BrandVoice))
-		}
-		if context.SuccessMetrics != nil {
-			parts = append(parts, fmt.Sprintf("- **Success Metrics:** %s", *context.SuccessMetrics))
-		}
-		if len(parts) > 0 {
-			desc += "\n\n**Context:**\n" + strings.Join(parts, "\n")
+		// Handle context as either string or object
+		switch ctx := context.(type) {
+		case string:
+			if ctx != "" {
+				desc += fmt.Sprintf("\n\n**Context:** %s", ctx)
+			}
+		case map[string]interface{}:
+			parts := []string{}
+			if bc, ok := ctx["business_context"].(string); ok && bc != "" {
+				parts = append(parts, fmt.Sprintf("- **Business Context:** %s", bc))
+			}
+			if tu, ok := ctx["target_users"].(string); ok && tu != "" {
+				parts = append(parts, fmt.Sprintf("- **Target Users:** %s", tu))
+			}
+			if bv, ok := ctx["brand_voice"].(string); ok && bv != "" {
+				parts = append(parts, fmt.Sprintf("- **Brand Voice:** %s", bv))
+			}
+			if sm, ok := ctx["success_metrics"].(string); ok && sm != "" {
+				parts = append(parts, fmt.Sprintf("- **Success Metrics:** %s", sm))
+			}
+			if len(parts) > 0 {
+				desc += "\n\n**Context:**\n" + strings.Join(parts, "\n")
+			}
 		}
 	}
 
@@ -293,8 +301,9 @@ func (a *BeadsAdapter) runBdCreate(title, description, itemType string, priority
 		return "", fmt.Errorf("bd create failed: %w", err)
 	}
 
-	// Extract issue ID from output (e.g., "bd-a3f8")
-	re := regexp.MustCompile(`bd-[a-z0-9]+`)
+	// Extract issue ID from output (e.g., "beads-test-a3f8" or "myproject-x7f2")
+	// Beads uses the format: <prefix>-<hash> where prefix is set during bd init
+	re := regexp.MustCompile(`\b[\w-]+-[a-z0-9]{2,}\b`)
 	match := re.FindString(string(output))
 	if match == "" {
 		return "", fmt.Errorf("could not extract issue ID from: %s", string(output))
