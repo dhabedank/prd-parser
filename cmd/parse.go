@@ -2,13 +2,16 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/dhabedank/prd-parser/internal/core"
 	"github.com/dhabedank/prd-parser/internal/llm"
 	"github.com/dhabedank/prd-parser/internal/output"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -22,6 +25,9 @@ var (
 	outputAdapter   string
 	outputPath      string
 	dryRun          bool
+	fromJSON        string // Resume from checkpoint
+	saveJSON        string // Save checkpoint
+	configFile      string // Config file path
 )
 
 // ParseCmd represents the parse command
@@ -56,22 +62,29 @@ func init() {
 	ParseCmd.Flags().StringVarP(&outputAdapter, "output", "o", "beads", "Output adapter (beads/json)")
 	ParseCmd.Flags().StringVar(&outputPath, "output-path", "", "Output path for JSON adapter")
 	ParseCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview without creating items")
+
+	// Checkpoint/resume options
+	ParseCmd.Flags().StringVar(&fromJSON, "from-json", "", "Resume from saved JSON checkpoint (skip LLM)")
+	ParseCmd.Flags().StringVar(&saveJSON, "save-json", "", "Save generated JSON to file (for resume)")
+
+	// Config file
+	ParseCmd.Flags().StringVar(&configFile, "config", "", "Config file (default: .prd-parser.yaml)")
 }
 
 func runParse(cmd *cobra.Command, args []string) error {
 	prdPath := args[0]
 
-	// Check PRD file exists
-	if _, err := os.Stat(prdPath); os.IsNotExist(err) {
-		return fmt.Errorf("PRD file not found: %s", prdPath)
+	// Load config file (flags override config file values)
+	if err := loadConfig(cmd); err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Create LLM adapter
-	llmAdapter, err := createLLMAdapter()
-	if err != nil {
-		return fmt.Errorf("failed to create LLM adapter: %w", err)
+	// Check PRD file exists (unless resuming from JSON)
+	if fromJSON == "" {
+		if _, err := os.Stat(prdPath); os.IsNotExist(err) {
+			return fmt.Errorf("PRD file not found: %s", prdPath)
+		}
 	}
-	fmt.Printf("Using LLM: %s\n", llmAdapter.Name())
 
 	// Create output adapter
 	outAdapter, outConfig, err := createOutputAdapter()
@@ -80,47 +93,168 @@ func runParse(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Using output: %s\n", outAdapter.Name())
 
-	// Build config
-	priority := core.Priority(defaultPriority)
-	config := core.ParseConfig{
-		TargetEpics:      targetEpics,
-		TasksPerEpic:     tasksPerEpic,
-		SubtasksPerTask:  subtasksPerTask,
-		DefaultPriority:  priority,
-		TestingLevel:     testingLevel,
-		PropagateContext: true,
-	}
-
 	// Wrap the output adapter to satisfy core.OutputAdapter interface
 	wrappedOutput := &outputAdapterWrapper{
 		adapter: outAdapter,
 		config:  outConfig,
 	}
 
-	// Parse PRD
-	ctx := context.Background()
-	result, err := core.ParsePRD(ctx, core.ParseOptions{
-		PRDPath:       prdPath,
-		LLMAdapter:    llmAdapter,
-		OutputAdapter: wrappedOutput,
-		Config:        &config,
-	})
+	var parseResponse *core.ParseResponse
+
+	// Either resume from JSON checkpoint or generate new
+	if fromJSON != "" {
+		// Resume from checkpoint
+		fmt.Printf("Resuming from checkpoint: %s\n", fromJSON)
+		data, err := os.ReadFile(fromJSON)
+		if err != nil {
+			return fmt.Errorf("failed to read checkpoint: %w", err)
+		}
+		parseResponse = &core.ParseResponse{}
+		if err := json.Unmarshal(data, parseResponse); err != nil {
+			return fmt.Errorf("failed to parse checkpoint JSON: %w", err)
+		}
+		fmt.Printf("Loaded %d epics from checkpoint\n", len(parseResponse.Epics))
+	} else {
+		// Generate new via LLM
+		llmAdapter, err := createLLMAdapter()
+		if err != nil {
+			return fmt.Errorf("failed to create LLM adapter: %w", err)
+		}
+		fmt.Printf("Using LLM: %s\n", llmAdapter.Name())
+
+		// Build config
+		priority := core.Priority(defaultPriority)
+		config := core.ParseConfig{
+			TargetEpics:      targetEpics,
+			TasksPerEpic:     tasksPerEpic,
+			SubtasksPerTask:  subtasksPerTask,
+			DefaultPriority:  priority,
+			TestingLevel:     testingLevel,
+			PropagateContext: true,
+		}
+
+		// Parse PRD
+		ctx := context.Background()
+		result, err := core.ParsePRD(ctx, core.ParseOptions{
+			PRDPath:       prdPath,
+			LLMAdapter:    llmAdapter,
+			OutputAdapter: nil, // Don't create items yet
+			Config:        &config,
+		})
+		if err != nil {
+			return fmt.Errorf("parsing failed: %w", err)
+		}
+		parseResponse = result.ParseResponse
+
+		// Save checkpoint if requested
+		if saveJSON != "" {
+			data, err := json.MarshalIndent(parseResponse, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal JSON: %w", err)
+			}
+			if err := os.WriteFile(saveJSON, data, 0644); err != nil {
+				return fmt.Errorf("failed to save checkpoint: %w", err)
+			}
+			fmt.Printf("Saved checkpoint to: %s\n", saveJSON)
+		}
+	}
+
+	// Create items via output adapter
+	fmt.Println("Creating items...")
+	createResult, err := wrappedOutput.CreateItems(parseResponse)
 	if err != nil {
-		return fmt.Errorf("parsing failed: %w", err)
+		// Auto-save checkpoint on failure for retry
+		checkpointPath := filepath.Join(os.TempDir(), "prd-parser-checkpoint.json")
+		data, _ := json.MarshalIndent(parseResponse, "", "  ")
+		os.WriteFile(checkpointPath, data, 0644)
+		return fmt.Errorf("creating items failed: %w\n\nCheckpoint saved to: %s\nRetry with: prd-parser parse %s --from-json %s", err, checkpointPath, prdPath, checkpointPath)
 	}
 
 	// Print summary
 	fmt.Println("\n--- Summary ---")
-	fmt.Printf("Epics: %d\n", result.CreateResult.Stats.Epics)
-	fmt.Printf("Tasks: %d\n", result.CreateResult.Stats.Tasks)
-	fmt.Printf("Subtasks: %d\n", result.CreateResult.Stats.Subtasks)
-	fmt.Printf("Dependencies: %d\n", result.CreateResult.Stats.Dependencies)
+	fmt.Printf("Epics: %d\n", createResult.Stats.Epics)
+	fmt.Printf("Tasks: %d\n", createResult.Stats.Tasks)
+	fmt.Printf("Subtasks: %d\n", createResult.Stats.Subtasks)
+	fmt.Printf("Dependencies: %d\n", createResult.Stats.Dependencies)
 
-	if len(result.CreateResult.Failed) > 0 {
-		fmt.Printf("\nFailed to create %d items:\n", len(result.CreateResult.Failed))
-		for _, f := range result.CreateResult.Failed {
+	if len(createResult.Failed) > 0 {
+		fmt.Printf("\nFailed to create %d items:\n", len(createResult.Failed))
+		for _, f := range createResult.Failed {
 			fmt.Printf("  - %v: %s\n", f.Item, f.Error)
 		}
+	}
+
+	return nil
+}
+
+// Config file structure
+type configFileData struct {
+	LLM             string `yaml:"llm"`
+	Model           string `yaml:"model"`
+	Epics           int    `yaml:"epics"`
+	TasksPerEpic    int    `yaml:"tasks_per_epic"`
+	SubtasksPerTask int    `yaml:"subtasks_per_task"`
+	Priority        string `yaml:"priority"`
+	Testing         string `yaml:"testing"`
+	Output          string `yaml:"output"`
+}
+
+func loadConfig(cmd *cobra.Command) error {
+	// Find config file
+	configPath := configFile
+	if configPath == "" {
+		// Check .prd-parser.yaml in current dir
+		if _, err := os.Stat(".prd-parser.yaml"); err == nil {
+			configPath = ".prd-parser.yaml"
+		} else if home, err := os.UserHomeDir(); err == nil {
+			// Check ~/.prd-parser.yaml
+			homePath := filepath.Join(home, ".prd-parser.yaml")
+			if _, err := os.Stat(homePath); err == nil {
+				configPath = homePath
+			}
+		}
+	}
+
+	if configPath == "" {
+		return nil // No config file, use defaults
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var cfg configFileData
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	fmt.Printf("Loaded config from: %s\n", configPath)
+
+	// Apply config values only if flags weren't explicitly set
+	if !cmd.Flags().Changed("llm") && cfg.LLM != "" {
+		llmProvider = cfg.LLM
+	}
+	if !cmd.Flags().Changed("model") && cfg.Model != "" {
+		llmModel = cfg.Model
+	}
+	if !cmd.Flags().Changed("epics") && cfg.Epics > 0 {
+		targetEpics = cfg.Epics
+	}
+	if !cmd.Flags().Changed("tasks") && cfg.TasksPerEpic > 0 {
+		tasksPerEpic = cfg.TasksPerEpic
+	}
+	if !cmd.Flags().Changed("subtasks") && cfg.SubtasksPerTask > 0 {
+		subtasksPerTask = cfg.SubtasksPerTask
+	}
+	if !cmd.Flags().Changed("priority") && cfg.Priority != "" {
+		defaultPriority = cfg.Priority
+	}
+	if !cmd.Flags().Changed("testing") && cfg.Testing != "" {
+		testingLevel = cfg.Testing
+	}
+	if !cmd.Flags().Changed("output") && cfg.Output != "" {
+		outputAdapter = cfg.Output
 	}
 
 	return nil

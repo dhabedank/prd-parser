@@ -110,7 +110,7 @@ func TestBuildUserPrompt(t *testing.T) {
 	prompt := core.BuildUserPrompt(prd, config)
 
 	// Check that config values are interpolated
-	if !strings.Contains(prompt, "3 epics") {
+	if !strings.Contains(prompt, "~3") {
 		t.Error("Prompt should contain target epics")
 	}
 	if !strings.Contains(prompt, "Test PRD") {

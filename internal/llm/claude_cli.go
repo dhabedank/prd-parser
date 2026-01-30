@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/dhabedank/prd-parser/internal/core"
 )
+
+const maxRetries = 3
 
 // ClaudeCLIAdapter uses the Claude Code CLI for generation.
 // This is preferred because users already have it authenticated.
@@ -37,31 +41,69 @@ func (a *ClaudeCLIAdapter) IsAvailable() bool {
 }
 
 func (a *ClaudeCLIAdapter) Generate(ctx context.Context, systemPrompt, userPrompt string) (*core.ParseResponse, error) {
+	var lastErr error
+	var lastOutput string
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if attempt > 1 {
+			fmt.Printf("Retry attempt %d/%d...\n", attempt, maxRetries)
+			time.Sleep(time.Duration(attempt) * 2 * time.Second) // Exponential backoff
+		}
+
+		output, err := a.callClaude(ctx, systemPrompt, userPrompt)
+		if err != nil {
+			lastErr = err
+			lastOutput = ""
+			fmt.Printf("LLM call failed: %v\n", err)
+			continue
+		}
+
+		lastOutput = output
+		response, err := parseJSONResponse(output)
+		if err != nil {
+			lastErr = err
+			fmt.Printf("JSON parsing failed: %v\n", err)
+			continue
+		}
+
+		return response, nil
+	}
+
+	// All retries failed - save raw response for debugging
+	if lastOutput != "" {
+		debugFile := filepath.Join(os.TempDir(), "prd-parser-last-response.txt")
+		os.WriteFile(debugFile, []byte(lastOutput), 0644)
+		return nil, fmt.Errorf("%w (raw response saved to %s)", lastErr, debugFile)
+	}
+
+	return nil, lastErr
+}
+
+func (a *ClaudeCLIAdapter) callClaude(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
 	// Write prompts to temp files (claude CLI reads from files better than stdin for long content)
 	systemFile, err := os.CreateTemp("", "prd-system-*.txt")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create system prompt file: %w", err)
+		return "", fmt.Errorf("failed to create system prompt file: %w", err)
 	}
 	defer os.Remove(systemFile.Name())
 
 	userFile, err := os.CreateTemp("", "prd-user-*.txt")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create user prompt file: %w", err)
+		return "", fmt.Errorf("failed to create user prompt file: %w", err)
 	}
 	defer os.Remove(userFile.Name())
 
 	if _, err := systemFile.WriteString(systemPrompt); err != nil {
-		return nil, fmt.Errorf("failed to write system prompt: %w", err)
+		return "", fmt.Errorf("failed to write system prompt: %w", err)
 	}
 	systemFile.Close()
 
 	if _, err := userFile.WriteString(userPrompt); err != nil {
-		return nil, fmt.Errorf("failed to write user prompt: %w", err)
+		return "", fmt.Errorf("failed to write user prompt: %w", err)
 	}
 	userFile.Close()
 
 	// Build claude command
-	// claude --model <model> --system-prompt-file <file> --print "<user prompt file>"
 	cmd := exec.CommandContext(ctx, "claude",
 		"--model", a.model,
 		"--system-prompt-file", systemFile.Name(),
@@ -76,28 +118,35 @@ func (a *ClaudeCLIAdapter) Generate(ctx context.Context, systemPrompt, userPromp
 	output, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return nil, fmt.Errorf("claude CLI failed: %s", string(exitErr.Stderr))
+			return "", fmt.Errorf("claude CLI failed: %s", string(exitErr.Stderr))
 		}
-		return nil, fmt.Errorf("claude CLI failed: %w", err)
+		return "", fmt.Errorf("claude CLI failed: %w", err)
 	}
 
-	// Parse JSON from output
-	return parseJSONResponse(string(output))
+	return string(output), nil
 }
 
 // parseJSONResponse extracts and validates JSON from LLM output.
 func parseJSONResponse(output string) (*core.ParseResponse, error) {
+	if len(output) == 0 {
+		return nil, fmt.Errorf("empty response from LLM")
+	}
+
 	// Find JSON in output (may be wrapped in markdown fences)
 	output = strings.TrimSpace(output)
 
 	// Remove markdown fences if present
 	if strings.HasPrefix(output, "```json") {
 		output = strings.TrimPrefix(output, "```json")
-		output = strings.TrimSuffix(output, "```")
+		if idx := strings.LastIndex(output, "```"); idx != -1 {
+			output = output[:idx]
+		}
 		output = strings.TrimSpace(output)
 	} else if strings.HasPrefix(output, "```") {
 		output = strings.TrimPrefix(output, "```")
-		output = strings.TrimSuffix(output, "```")
+		if idx := strings.LastIndex(output, "```"); idx != -1 {
+			output = output[:idx]
+		}
 		output = strings.TrimSpace(output)
 	}
 
@@ -105,13 +154,30 @@ func parseJSONResponse(output string) (*core.ParseResponse, error) {
 	start := strings.Index(output, "{")
 	end := strings.LastIndex(output, "}")
 	if start == -1 || end == -1 || end < start {
-		return nil, fmt.Errorf("no valid JSON found in response")
+		// Show first 200 chars to help debug
+		preview := output
+		if len(preview) > 200 {
+			preview = preview[:200] + "..."
+		}
+		return nil, fmt.Errorf("no valid JSON found in response (starts with: %q)", preview)
 	}
 
 	jsonStr := output[start : end+1]
 
 	var response core.ParseResponse
 	if err := json.Unmarshal([]byte(jsonStr), &response); err != nil {
+		// Try to find the error location
+		if syntaxErr, ok := err.(*json.SyntaxError); ok {
+			context := jsonStr
+			offset := int(syntaxErr.Offset)
+			if offset > 50 {
+				context = "..." + jsonStr[offset-50:]
+			}
+			if len(context) > 100 {
+				context = context[:100] + "..."
+			}
+			return nil, fmt.Errorf("JSON syntax error at position %d: %v (near: %q)", syntaxErr.Offset, err, context)
+		}
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 

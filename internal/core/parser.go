@@ -60,14 +60,15 @@ type ParseOptions struct {
 
 // ParseResult is the result of parsing a PRD.
 type ParseResult struct {
-	// Response is the parsed PRD with epics/tasks/subtasks.
-	Response *ParseResponse
+	// ParseResponse is the parsed PRD with epics/tasks/subtasks.
+	ParseResponse *ParseResponse
 
-	// CreateResult is the output from creating items.
+	// CreateResult is the output from creating items (nil if OutputAdapter was nil).
 	CreateResult *OutputCreateResult
 }
 
-// ParsePRD parses a PRD file and creates tasks.
+// ParsePRD parses a PRD file and optionally creates tasks.
+// If opts.OutputAdapter is nil, only parsing is done (no task creation).
 func ParsePRD(ctx context.Context, opts ParseOptions) (*ParseResult, error) {
 	// Apply defaults
 	config := DefaultParseConfig()
@@ -84,13 +85,15 @@ func ParsePRD(ctx context.Context, opts ParseOptions) (*ParseResult, error) {
 	// Build prompts
 	userPrompt := BuildUserPrompt(string(content), config)
 
-	// Check output adapter availability
-	available, err := opts.OutputAdapter.IsAvailable()
-	if err != nil {
-		return nil, fmt.Errorf("output adapter error: %w", err)
-	}
-	if !available {
-		return nil, fmt.Errorf("output adapter '%s' is not available", opts.OutputAdapter.Name())
+	// Check output adapter availability (only if provided)
+	if opts.OutputAdapter != nil {
+		available, err := opts.OutputAdapter.IsAvailable()
+		if err != nil {
+			return nil, fmt.Errorf("output adapter error: %w", err)
+		}
+		if !available {
+			return nil, fmt.Errorf("output adapter '%s' is not available", opts.OutputAdapter.Name())
+		}
 	}
 
 	// Generate tasks via LLM
@@ -111,6 +114,14 @@ func ParsePRD(ctx context.Context, opts ParseOptions) (*ParseResult, error) {
 	}
 	fmt.Printf("Generated %d epics, %d tasks, %d subtasks\n", len(response.Epics), totalTasks, totalSubtasks)
 
+	// If no output adapter, just return the parsed response
+	if opts.OutputAdapter == nil {
+		return &ParseResult{
+			ParseResponse: response,
+			CreateResult:  nil,
+		}, nil
+	}
+
 	// Create tasks in target system
 	fmt.Printf("Creating tasks in %s...\n", opts.OutputAdapter.Name())
 	createResult, err := opts.OutputAdapter.CreateItems(response)
@@ -130,7 +141,7 @@ func ParsePRD(ctx context.Context, opts ParseOptions) (*ParseResult, error) {
 	fmt.Printf("Established %d dependencies\n", createResult.Stats.Dependencies)
 
 	return &ParseResult{
-		Response:     response,
-		CreateResult: createResult,
+		ParseResponse: response,
+		CreateResult:  createResult,
 	}, nil
 }

@@ -114,10 +114,22 @@ Labels help filter and organize work. Extract from PRD tech stack and feature de
 // UserPromptTemplate is the template for user messages.
 const UserPromptTemplate = `Analyze this PRD and generate a hierarchical breakdown.
 
-Target structure:
-- %d epics
-- ~%d tasks per epic
-- ~%d subtasks per task
+## DYNAMIC STRUCTURE (IMPORTANT)
+
+Analyze the PRD's complexity and scope to determine the RIGHT structure. Do NOT force arbitrary counts.
+
+**Guidelines based on PRD scope:**
+- Tiny PRD (single feature, bug fix): 1 epic, 1-2 tasks
+- Small PRD (single user flow): 1-2 epics, 2-4 tasks each
+- Medium PRD (MVP, several features): 3-5 epics, 3-6 tasks each
+- Large PRD (full product spec): 5-8 epics, 4-8 tasks each
+
+**User's guidance (use as rough targets, NOT hard requirements):**
+- Target epics: ~%d (but use fewer if PRD is simple, more if complex)
+- Target tasks per epic: ~%d (but adjust to actual epic scope)
+- Target subtasks per task: ~%d (only if task needs decomposition)
+
+**Key principle:** The PRD's actual content should drive the structure. A simple PRD with 1 feature should NOT have 5 epics. A complex PRD may need more than the targets.
 
 Default priority: %s
 Testing level: %s
