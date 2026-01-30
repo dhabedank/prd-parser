@@ -45,6 +45,21 @@ Starting a new project is exciting. You have a vision, maybe a PRD, and you're r
 
 ### 1. Install prd-parser
 
+**Via npm/bun (easiest):**
+```bash
+npm install -g prd-parser
+# or
+bun install -g prd-parser
+# or
+npx prd-parser parse ./docs/prd.md  # run without installing
+```
+
+**Via Go:**
+```bash
+go install github.com/dhabedank/prd-parser@latest
+```
+
+**From source:**
 ```bash
 cd /tmp && git clone https://github.com/dhabedank/prd-parser.git && cd prd-parser && make install
 ```
@@ -242,7 +257,10 @@ prd-parser parse ./prd.md --include-context --include-testing
 | `--testing` | | comprehensive | Testing level (minimal/standard/comprehensive) |
 | `--llm` | `-l` | auto | LLM provider (auto/claude-cli/codex-cli/anthropic-api) |
 | `--model` | `-m` | | Model to use (provider-specific) |
-| `--multi-stage` | | false | Use multi-stage parsing (recommended for large PRDs) |
+| `--multi-stage` | | | Force multi-stage parsing |
+| `--single-shot` | | | Force single-shot parsing |
+| `--smart-threshold` | | 300 | Line count for auto multi-stage (0 to disable) |
+| `--validate` | | false | Run validation pass to check for gaps |
 | `--subtask-model` | | | Model for subtasks in multi-stage (can be faster/cheaper) |
 | `--output` | `-o` | beads | Output adapter (beads/json) |
 | `--output-path` | | | Output path for JSON adapter |
@@ -251,28 +269,39 @@ prd-parser parse ./prd.md --include-context --include-testing
 | `--include-context` | | true | Include context in descriptions |
 | `--include-testing` | | true | Include testing requirements |
 
-### Multi-Stage Parsing (Recommended for Large PRDs)
+### Smart Parsing (Default Behavior)
 
-For large PRDs (500+ lines), use multi-stage parsing for more reliable results:
+prd-parser automatically chooses the best parsing strategy based on PRD size:
+
+- **Small PRDs** (< 300 lines): Single-shot parsing (faster)
+- **Large PRDs** (≥ 300 lines): Multi-stage parallel parsing (more reliable)
+
+Override with `--single-shot` or `--multi-stage` flags, or adjust threshold with `--smart-threshold`.
+
+### Validation Pass
+
+Use `--validate` to run a final review that checks for gaps in the generated plan:
 
 ```bash
-prd-parser parse ./prd.md --multi-stage
+prd-parser parse ./prd.md --validate
 ```
 
-Multi-stage parsing works in three parallel phases:
-1. **Stage 1**: Extract epics from PRD (high-level structure)
-2. **Stage 2**: Generate tasks for each epic (parallel)
-3. **Stage 3**: Generate subtasks for each task (parallel)
+This asks the LLM to review the complete plan and identify:
+- Missing setup/initialization tasks
+- Backend without UI to test it
+- Dependencies not installed
+- Acceptance criteria that can't be verified
+- Tasks in wrong order
 
-Benefits:
-- More reliable for complex PRDs
-- Parallel execution for faster processing
-- Better error recovery (retry individual stages)
-- Can use cheaper models for subtask generation
-
-```bash
-# Use a faster model for subtasks
-prd-parser parse ./prd.md --multi-stage --subtask-model claude-haiku-3
+Example output:
+```
+✓ Plan validation passed - no gaps found
+```
+or
+```
+⚠ Plan validation found gaps:
+  • No task to install dependencies after adding @clerk/nextjs
+  • Auth API built but no login page to test it
 ```
 
 ## LLM Providers

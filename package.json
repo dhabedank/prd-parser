@@ -1,0 +1,46 @@
+{
+  "name": "prd-parser",
+  "version": "0.1.0",
+  "description": "Turn your PRD into a ready-to-work beads project in one command",
+  "keywords": [
+    "prd",
+    "parser",
+    "beads",
+    "task",
+    "project-management",
+    "ai",
+    "llm"
+  ],
+  "author": "David Habedank",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dhabedank/prd-parser.git"
+  },
+  "homepage": "https://github.com/dhabedank/prd-parser#readme",
+  "bugs": {
+    "url": "https://github.com/dhabedank/prd-parser/issues"
+  },
+  "bin": {
+    "prd-parser": "bin/prd-parser"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "files": [
+    "bin",
+    "scripts"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

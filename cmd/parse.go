@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/dhabedank/prd-parser/internal/core"
@@ -15,21 +16,24 @@ import (
 )
 
 var (
-	targetEpics     int
-	tasksPerEpic    int
-	subtasksPerTask int
-	defaultPriority string
-	testingLevel    string
-	llmProvider     string
-	llmModel        string
-	subtaskModel    string // Model for subtasks in multi-stage
-	outputAdapter   string
-	outputPath      string
-	dryRun          bool
-	fromJSON        string // Resume from checkpoint
-	saveJSON        string // Save checkpoint
-	configFile      string // Config file path
-	multiStage      bool   // Use multi-stage parsing
+	targetEpics      int
+	tasksPerEpic     int
+	subtasksPerTask  int
+	defaultPriority  string
+	testingLevel     string
+	llmProvider      string
+	llmModel         string
+	subtaskModel     string // Model for subtasks in multi-stage
+	outputAdapter    string
+	outputPath       string
+	dryRun           bool
+	fromJSON         string // Resume from checkpoint
+	saveJSON         string // Save checkpoint
+	configFile       string // Config file path
+	multiStage       bool   // Force multi-stage parsing
+	singleShot       bool   // Force single-shot parsing
+	validate         bool   // Run validation pass after generation
+	smartParseLines  int    // Threshold for smart parsing (lines)
 )
 
 // ParseCmd represents the parse command
@@ -60,7 +64,12 @@ func init() {
 	ParseCmd.Flags().StringVarP(&llmProvider, "llm", "l", "auto", "LLM provider (auto/claude-cli/codex-cli/anthropic-api)")
 	ParseCmd.Flags().StringVarP(&llmModel, "model", "m", "", "Model to use (provider-specific)")
 	ParseCmd.Flags().StringVar(&subtaskModel, "subtask-model", "", "Model for subtasks in multi-stage (can be faster/cheaper)")
-	ParseCmd.Flags().BoolVar(&multiStage, "multi-stage", false, "Use multi-stage parsing (parallel, more robust for large PRDs)")
+
+	// Parsing strategy (smart by default)
+	ParseCmd.Flags().BoolVar(&multiStage, "multi-stage", false, "Force multi-stage parsing")
+	ParseCmd.Flags().BoolVar(&singleShot, "single-shot", false, "Force single-shot parsing")
+	ParseCmd.Flags().BoolVar(&validate, "validate", false, "Run validation pass to check for gaps after generation")
+	ParseCmd.Flags().IntVar(&smartParseLines, "smart-threshold", 300, "Line count threshold for auto multi-stage (0 to disable)")
 
 	// Output options
 	ParseCmd.Flags().StringVarP(&outputAdapter, "output", "o", "beads", "Output adapter (beads/json)")
@@ -119,6 +128,32 @@ func runParse(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Printf("Loaded %d epics from checkpoint\n", len(parseResponse.Epics))
 	} else {
+		// Read PRD content for smart parsing decision
+		prdContent, err := os.ReadFile(prdPath)
+		if err != nil {
+			return fmt.Errorf("failed to read PRD: %w", err)
+		}
+
+		// Count lines for smart parsing
+		lineCount := len(strings.Split(string(prdContent), "\n"))
+
+		// Determine parsing strategy
+		useMultiStage := multiStage // Explicit flag takes precedence
+		if !multiStage && !singleShot && smartParseLines > 0 {
+			// Smart detection: use multi-stage for large PRDs
+			if lineCount > smartParseLines {
+				useMultiStage = true
+				fmt.Printf("PRD has %d lines (> %d threshold) - using multi-stage parsing\n", lineCount, smartParseLines)
+			} else {
+				fmt.Printf("PRD has %d lines - using single-shot parsing\n", lineCount)
+			}
+		} else if singleShot {
+			useMultiStage = false
+			fmt.Println("Forcing single-shot parsing")
+		} else if multiStage {
+			fmt.Println("Forcing multi-stage parsing")
+		}
+
 		// Build config
 		priority := core.Priority(defaultPriority)
 		config := core.ParseConfig{
@@ -132,10 +167,8 @@ func runParse(cmd *cobra.Command, args []string) error {
 
 		ctx := context.Background()
 
-		if multiStage {
+		if useMultiStage {
 			// Multi-stage parsing (parallel, more robust)
-			fmt.Println("Using multi-stage parsing...")
-
 			llmConfig := llm.Config{
 				Model:        llmModel,
 				SubtaskModel: subtaskModel,
@@ -143,12 +176,6 @@ func runParse(cmd *cobra.Command, args []string) error {
 			}
 			generator := llm.NewMultiStageGenerator(llmConfig)
 			parser := core.NewMultiStageParser(generator, config)
-
-			// Read PRD content
-			prdContent, err := os.ReadFile(prdPath)
-			if err != nil {
-				return fmt.Errorf("failed to read PRD: %w", err)
-			}
 
 			parseResponse, err = parser.Parse(ctx, string(prdContent))
 			if err != nil {
@@ -184,6 +211,30 @@ func runParse(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("failed to save checkpoint: %w", err)
 			}
 			fmt.Printf("Saved checkpoint to: %s\n", saveJSON)
+		}
+
+		// Run validation if requested
+		if validate {
+			fmt.Println("\nValidating plan for gaps...")
+			validationResult, err := runValidation(ctx, parseResponse, string(prdContent), llmModel)
+			if err != nil {
+				fmt.Printf("Warning: validation failed: %v\n", err)
+			} else {
+				if validationResult.IsValid {
+					fmt.Println("✓ Plan validation passed - no gaps found")
+				} else {
+					fmt.Println("⚠ Plan validation found gaps:")
+					for _, gap := range validationResult.Gaps {
+						fmt.Printf("  • %s\n", gap)
+					}
+				}
+				if len(validationResult.Warnings) > 0 {
+					fmt.Println("Warnings:")
+					for _, warning := range validationResult.Warnings {
+						fmt.Printf("  • %s\n", warning)
+					}
+				}
+			}
 		}
 	}
 
@@ -379,4 +430,31 @@ func (w *outputAdapterWrapper) CreateItems(response *core.ParseResponse) (*core.
 	}
 
 	return coreResult, nil
+}
+
+// runValidation runs the validation pass on the generated plan.
+func runValidation(ctx context.Context, response *core.ParseResponse, prdContent string, model string) (*core.ValidationResult, error) {
+	// Use the same model as parsing, or default
+	if model == "" {
+		model = "claude-sonnet-4-20250514"
+	}
+
+	// Build validation prompt
+	userPrompt := core.BuildValidationPrompt(response, prdContent)
+
+	// Call LLM for validation
+	config := llm.Config{Model: model, PreferCLI: true}
+	adapter := llm.NewClaudeCLIAdapter(config)
+	if !adapter.IsAvailable() {
+		return nil, fmt.Errorf("Claude CLI not available for validation")
+	}
+
+	// Get raw output for validation
+	output, err := adapter.GenerateRaw(ctx, core.ValidationPrompt, userPrompt)
+	if err != nil {
+		return nil, fmt.Errorf("validation LLM call failed: %w", err)
+	}
+
+	// Parse the validation result
+	return core.ParseValidationResult(output)
 }

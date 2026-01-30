@@ -79,6 +79,12 @@ func (a *ClaudeCLIAdapter) Generate(ctx context.Context, systemPrompt, userPromp
 	return nil, lastErr
 }
 
+// GenerateRaw sends prompts to Claude and returns raw string output.
+// Used for validation and other non-structured responses.
+func (a *ClaudeCLIAdapter) GenerateRaw(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	return a.callClaude(ctx, systemPrompt, userPrompt)
+}
+
 func (a *ClaudeCLIAdapter) callClaude(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
 	// Write prompts to temp files (claude CLI reads from files better than stdin for long content)
 	systemFile, err := os.CreateTemp("", "prd-system-*.txt")
