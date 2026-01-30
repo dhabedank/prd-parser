@@ -101,7 +101,7 @@ PRD CONTENT:
 
 Generate a JSON object with:
 
-1. "project" - Extracted context (product_name, elevator_pitch, target_audience, business_goals, user_goals, brand_guidelines, tech_stack, constraints)
+1. "project" - Extracted context with these STRING fields: product_name, elevator_pitch, target_audience, brand_guidelines (or null). And these ARRAY OF STRINGS: business_goals, user_goals, tech_stack, constraints
 
 2. "epics" - Array with temp_id, title, description, context, acceptance_criteria, testing, tasks, depends_on, estimated_days
 
