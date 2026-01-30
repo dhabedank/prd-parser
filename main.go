@@ -26,6 +26,7 @@ func main() {
 
 	// Add commands
 	rootCmd.AddCommand(cmd.ParseCmd)
+	rootCmd.AddCommand(cmd.RefineCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

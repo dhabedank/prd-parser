@@ -161,7 +161,7 @@ type Epic struct {
 type ProjectContext struct {
 	ProductName     string              `json:"product_name"`                   // Name of the product
 	ElevatorPitch   string              `json:"elevator_pitch"`                 // One sentence: what and why
-	TargetAudience  string              `json:"target_audience"`                // Primary and secondary users
+	TargetAudience  FlexibleString      `json:"target_audience"`                // Primary and secondary users
 	BusinessGoals   FlexibleStringSlice `json:"business_goals"`                 // What the business wants
 	UserGoals       FlexibleStringSlice `json:"user_goals"`                     // What users want
 	BrandGuidelines interface{}         `json:"brand_guidelines,omitempty"`     // Voice, tone, visual identity (string or object)
